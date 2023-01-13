@@ -315,6 +315,7 @@ def heroic_sync(save_dirs: list, root: str):
         # heroic_db.close()
 
 def search_dir(root: str):
+    # TODO: Make this shit readable 
     config = configparser.ConfigParser()
     config.read(os.path.join(config_dir, 'config.ini'))
     print(config['Launchers']['selected'])
@@ -334,10 +335,11 @@ def search_dir(root: str):
         print("Found Heroic game saves:")
         db_saves = db_cur.execute("SELECT * FROM games")
         for i in range(len(heroic_saves)):
+            '''
             if heroic_saves[i].name not in [x for x['name'] in db_saves]:
                 db_cur.execute("INSERT INTO games VALUES ('?', '?', ?)", (heroic_saves[i].name, heroic_saves[i].path, '0'))
                 heroic_db.commit()
-                heroic_db.close()
+                heroic_db.close()'''
             print(f"{i+1}. {heroic_saves[i].name}")
 
         while True:
