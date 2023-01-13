@@ -1,0 +1,75 @@
+.add-text {
+    position: relative;
+    top: 50%;
+    -ms-transform: translateY(-50%);
+    transform: translateY(-50%);
+}
+.book {
+    background-color: rgba(255, 255, 255, 0.8);
+    border: 1px solid rgba(0, 0, 0, 0.8);
+    color: gray;
+    height: 320px;
+    width: 200px;
+    font-size: 30px;
+    text-align: center;
+}
+
+.books {
+    border-radius: 10px;
+    column-gap: 10px;
+    row-gap: 20px;
+    display: inline-grid;
+    grid-template-columns: auto auto auto auto auto auto auto auto;
+    background-color: rgb(56, 64, 73);
+    padding: 10px;
+}
+
+.cover {
+    display: block;
+    float: left;
+    height: 250px;
+    width: 150px;
+}
+
+.info {
+    display: block;
+    float: left;
+}
+
+.link-color {
+    color: lightgray;
+}
+
+.menu-box {
+    background-color: rgb(56, 64, 73);
+    display: inline-block;
+    color: lightgray;
+    border-radius: 10px;
+}
+
+.nav-color {
+    background-color: rgba(113, 166, 210, 0);
+}
+
+.object {
+    background-color: lightgray;
+    width: 10%;
+    height: 20%;
+}
+
+.pos-right {
+    float: right;
+}
+
+.primary {
+    background-color: rgba(30, 35, 40, 1);
+    color: lightgray;
+}
+
+body {
+    font-family: "Fira Sans", sans-serif;
+}
+
+hr {
+    border-top: 5px solid rgba(30, 35, 40, 1);
+}
