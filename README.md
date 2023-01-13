@@ -17,6 +17,8 @@ Custom directory support
 
 Emulator support
 
+Argparse
+
 #### Barely functional
 ----------------------
 Heroic support
