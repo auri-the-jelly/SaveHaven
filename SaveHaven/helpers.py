@@ -276,43 +276,31 @@ def heroic_sync(save_dirs: list, root: str):
         heroic_folder = create_folder("Heroic", parent=root)
         files = list_folder(heroic_folder)
         cloud_file = [file for file in files if file['name'] == selected_game.name + '.zip']
-        # heroic_db = sqlite3.connect(config_dir + 'heroic.db')
-        # db_cur = heroic_db.cursor()
+
+        print(f"Working on {selected_game.name}")
         if len(cloud_file) > 0:
             date_time_obj = datetime.strptime(cloud_file[0]['modifiedTime'], '%Y-%m-%dT%H:%M:%S.%fZ').strftime("%s")
             if float(date_time_obj) < float(selected_game.modified):
-                print("Syncing")
-                zip_location = selected_game.path + '.zip'
-                if os.path.exists(zip_location):
-                    os.remove(zip_location)
-                print("Zipping")
-                shutil.make_archive(selected_game.path, 'zip', selected_game.path)
-                print("Uploading")
+                print("Cloud file found, Syncing")
                 delete = delete_file(cloud_file[0]['id'])
-                if delete:
-                    file_id = upload_file(zip_location, selected_game.name + '.zip', heroic_folder)
-                    print(f"Finished {selected_game.name}")
-                    os.remove(zip_location)
-                    # db_cur.execute("UPDATE games SET uploaded ? WHERE name = ?", [float(datetime.now().strftime("%s")), selected_game.name])
-                else:
+                if not delete:
                     print("Deletion Failed")
+                    continue
             else:
                 print(f"Skipping {selected_game.name}, Google Drive up to date")
+                continue
             print(f"{float(date_time_obj)} {float(selected_game.modified)}")
-        else:
-            print(f"Working on {selected_game.name}")
-
-            zip_location = selected_game.path + '.zip'
-            if not os.path.exists(zip_location):
-                print("Zipping")
-                shutil.make_archive(selected_game.path, 'zip', selected_game.path)
-            print("Uploading")
-            file_id = upload_file(zip_location, selected_game.name + '.zip', heroic_folder)
-            print(f"Finished {selected_game.name}")
+        zip_location = selected_game.path + '.zip'
+        if os.path.exists(zip_location):
             os.remove(zip_location)
-            # db_cur.execute("UPDATE games SET uploaded ? WHERE name = ?", [float(datetime.now().strftime("%s")), selected_game.name])
-        # heroic_db.commit()
-        # heroic_db.close()
+        print("Zipping")
+        shutil.make_archive(selected_game.path, 'zip', selected_game.path)
+        print("Uploading")
+        file_id = upload_file(zip_location, selected_game.name + '.zip', heroic_folder)
+        print(f"Finished {selected_game.name}")
+        os.remove(zip_location)
+        # heroic_db = sqlite3.connect(config_dir + 'heroic.db')
+        # db_cur = heroic_db.cursor()
 
 def search_dir(root: str):
     # TODO: Make this shit readable 
