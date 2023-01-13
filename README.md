@@ -12,7 +12,9 @@ SQLite3 db to document syncs
 #### Planned
 ------------
 Steam, GOG and Legendary and Wine EGS support
+
 Custom directory support
+
 Emulator support
 
 #### Barely functional
