@@ -19,6 +19,8 @@ Emulator support
 
 Argparse
 
+Game by game support for save file location instead of uploading the whole prefix using PCGamingWiki
+
 #### Barely functional
 ----------------------
 Heroic support
