@@ -272,6 +272,9 @@ def delete_file(file_id):
 
 # region SaveSync functions
 def heroic_sync(save_dirs: list, root: str):
+    saves_file = open(os.path.join(config_dir, 'config.json'), 'r')
+    save_json = json.load(saves_file)
+    saves_file.close()
     for selected_game in save_dirs:
         heroic_folder = create_folder("Heroic", parent=root)
         files = list_folder(heroic_folder)
@@ -297,10 +300,11 @@ def heroic_sync(save_dirs: list, root: str):
         shutil.make_archive(selected_game.path, 'zip', selected_game.path)
         print("Uploading")
         file_id = upload_file(zip_location, selected_game.name + '.zip', heroic_folder)
+        save_json['games'][selected_game.name]['uploaded'] = float(datetime.now().strftime("%s"))
         print(f"Finished {selected_game.name}")
         os.remove(zip_location)
-        # heroic_db = sqlite3.connect(config_dir + 'heroic.db')
-        # db_cur = heroic_db.cursor()
+    with open(os.path.join(config_dir, 'config.json'), 'w') as saves_file:
+        json.dump(save_json, saves_file)
 
 def search_dir(root: str):
     # TODO: Make this shit readable 
@@ -313,22 +317,30 @@ def search_dir(root: str):
     if 'Games' in os.listdir(home_path) and "Heroic" in launchers:
         games_dir = os.path.join(home_path, "Games")
         heroic_dir = os.path.join(games_dir, "Heroic", "Prefixes")
-        heroic_db = sqlite3.connect(config_dir + 'heroic.db')
-        db_cur = heroic_db.cursor()
         heroic_saves = []
         for file in os.listdir(heroic_dir):
             if os.path.isdir(os.path.join(heroic_dir,file)):
                 save_path = os.path.join(heroic_dir, file)
                 heroic_saves.append(SaveDir(file, save_path, os.path.getmtime(save_path)))
         print("Found Heroic game saves:")
-        db_saves = db_cur.execute("SELECT * FROM games")
+        save_json = {'games': {}}
+        if os.path.exists(os.path.join(config_dir, 'config.json')):
+            config_file = open(os.path.join(config_dir, 'config.json'))
+            save_json = json.load(config_file)
+            config_file.close()
+        saves_dict = {'games': {}}
         for i in range(len(heroic_saves)):
-            '''
-            if heroic_saves[i].name not in [x for x['name'] in db_saves]:
-                db_cur.execute("INSERT INTO games VALUES ('?', '?', ?)", (heroic_saves[i].name, heroic_saves[i].path, '0'))
-                heroic_db.commit()
-                heroic_db.close()'''
+            if save_json['games'] and not heroic_saves[i].name in save_json['games'].keys():
+                save_json['games'][heroic_saves[i].name] = {'path': heroic_saves[i].path, 'uploaded': 0}
+            else:
+                saves_dict['games'][heroic_saves[i].name] = {'path': heroic_saves[i].path, 'uploaded': 0}
             print(f"{i+1}. {heroic_saves[i].name}")
+        if not os.path.exists(os.path.join(config_dir, 'config.json')):
+            with open(os.path.join(config_dir, 'config.json'), 'w') as sjson:
+                json.dump(saves_dict, sjson, indent=4)
+        else:
+            with open(os.path.join(config_dir, 'config.json'), 'w') as sjson:
+                json.dump(save_json, sjson, indent=4)
 
         while True:
             sync_nums = input("Enter range (3-5) or indexes (1,3,5): ")

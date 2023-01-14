@@ -53,12 +53,6 @@ def main():
                 with open(config, "w") as config_file:
                     updated_config.write(config_file)
                 print(selected_launchers)
-                for launcher in selected_launchers:
-                    db = sqlite3.connect(config_dir + f'{launcher.lower()}.db')
-                    cur = db.cursor()
-                    cur.execute("CREATE TABLE games (name TEXT NOT NULL, path TEXT NOT NULL, uploaded DOUBLE)")
-                    db.commit()
-                    db.close()
                 break
             except Exception as e:
                 print("Error occured: ", e)
