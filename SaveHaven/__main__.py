@@ -49,9 +49,7 @@ def main():
                 for i in range(len(indices)):
                     indices[i] = int(indices[i]) - 1
                 selected_launchers = [x for x in launchers if launchers.index(x) in indices]
-                updated_config = update_launchers(selected_launchers)
-                with open(config, "w") as config_file:
-                    updated_config.write(config_file)
+                update_launchers(selected_launchers)
                 print(selected_launchers)
                 break
             except Exception as e:

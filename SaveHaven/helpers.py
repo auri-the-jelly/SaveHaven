@@ -272,27 +272,47 @@ def delete_file(file_id):
 
 # region SaveSync functions
 def heroic_sync(save_dirs: list, root: str):
+    '''
+    Sync Heroic files
+
+    Parameters
+    ----------
+    save_dirs: list
+        List of SaveDir objects of games in Heroic directories
+
+    root: str
+        ID of SaveHaven folder in Google Drive
+    '''
+    # Save JSON
     saves_file = open(os.path.join(config_dir, 'config.json'), 'r')
     save_json = json.load(saves_file)
     saves_file.close()
     for selected_game in save_dirs:
+        # Find files already in Drive
         heroic_folder = create_folder("Heroic", parent=root)
         files = list_folder(heroic_folder)
         cloud_file = [file for file in files if file['name'] == selected_game.name + '.zip']
 
         print(f"Working on {selected_game.name}")
+        # Check if cloud file was modified before or after upload time
         if len(cloud_file) > 0:
             date_time_obj = datetime.strptime(cloud_file[0]['modifiedTime'], '%Y-%m-%dT%H:%M:%S.%fZ').strftime("%s")
-            if float(date_time_obj) < float(selected_game.modified):
+            print(f"{float(date_time_obj)} {float(selected_game.modified)} {save_json['games'][selected_game.name]['uploaded']}")
+            if float(save_json['games'][selected_game.name]['uploaded']) < float(selected_game.modified):
                 print("Cloud file found, Syncing")
                 delete = delete_file(cloud_file[0]['id'])
                 if not delete:
                     print("Deletion Failed")
                     continue
-            else:
+            elif float(date_time_obj) < float(save_json['games'][selected_game.name]['uploaded']):
                 print(f"Skipping {selected_game.name}, Google Drive up to date")
                 continue
-            print(f"{float(date_time_obj)} {float(selected_game.modified)}")
+            elif float(date_time_obj) > float(save_json['games'][selected_game.name]['uploaded']):
+                consent = input("Cloud file is more recent, sync with cloud? (Y/n)")
+                if consent.lower() == 'y':
+                    print("Syncing")
+                else:
+                    print("Sync cancelled")
         zip_location = selected_game.path + '.zip'
         if os.path.exists(zip_location):
             os.remove(zip_location)
@@ -307,21 +327,34 @@ def heroic_sync(save_dirs: list, root: str):
         json.dump(save_json, saves_file)
 
 def search_dir(root: str):
+    '''
+    Scan directories for save files
+
+    Parameters
+    ----------
+    root: str
+        ID of the SaveHaven folder on Drive
+    '''
     # TODO: Make this shit readable 
+    # Gets selected launchers
     config = configparser.ConfigParser()
     config.read(os.path.join(config_dir, 'config.ini'))
     print(config['Launchers']['selected'])
     launchers = config['Launchers']['selected'].split(',')
-    print(launchers)
     home_path = os.path.expanduser("~")
+
+    # Heroic scanning
     if 'Games' in os.listdir(home_path) and "Heroic" in launchers:
         games_dir = os.path.join(home_path, "Games")
         heroic_dir = os.path.join(games_dir, "Heroic", "Prefixes")
         heroic_saves = []
+        # Add prefixes to list
         for file in os.listdir(heroic_dir):
             if os.path.isdir(os.path.join(heroic_dir,file)):
                 save_path = os.path.join(heroic_dir, file)
                 heroic_saves.append(SaveDir(file, save_path, os.path.getmtime(save_path)))
+
+        # Read config for added games
         print("Found Heroic game saves:")
         save_json = {'games': {}}
         if os.path.exists(os.path.join(config_dir, 'config.json')):
@@ -329,6 +362,8 @@ def search_dir(root: str):
             save_json = json.load(config_file)
             config_file.close()
         saves_dict = {'games': {}}
+
+        # Add games to config
         for i in range(len(heroic_saves)):
             if save_json['games'] and not heroic_saves[i].name in save_json['games'].keys():
                 save_json['games'][heroic_saves[i].name] = {'path': heroic_saves[i].path, 'uploaded': 0}
@@ -342,6 +377,7 @@ def search_dir(root: str):
             with open(os.path.join(config_dir, 'config.json'), 'w') as sjson:
                 json.dump(save_json, sjson, indent=4)
 
+        # Selecting games to sync
         while True:
             sync_nums = input("Enter range (3-5) or indexes (1,3,5): ")
             valid_chars = "1234567890-,"
@@ -386,8 +422,18 @@ def search_dir(root: str):
         heroic_sync(selected_games, root)
             
 def update_launchers(launchers: list):
+    '''
+    Update config file with launchers
+
+    Parameters
+    ----------
+    launchers: list
+        List of launchers
+
+    '''
     config = configparser.ConfigParser()
     config['Launchers'] = {'selected': ','.join(launchers)}
-    return config
+    with open(os.path.join(config_dir, 'config.ini'), "w") as config_file:
+        config.write(config_file)
 
 # endregion
