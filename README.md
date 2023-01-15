@@ -7,7 +7,7 @@ Not currently operational
 
 #### Currently
 --------------
-SQLite3 db to document syncs
+Argparse
 
 #### Planned
 ------------
@@ -17,13 +17,13 @@ Custom directory support
 
 Emulator support
 
-Argparse
-
 Game by game support for save file location instead of uploading the whole prefix using PCGamingWiki
 
 #### Barely functional
 ----------------------
 Heroic support
+
+SQLite3 db to document syncs
 
 ## For those poor souls who stumbled upon this project and want to contribute for god knows why
 
