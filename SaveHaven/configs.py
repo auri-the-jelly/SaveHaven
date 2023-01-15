@@ -22,13 +22,22 @@ creds_path = os.path.join(config_dir, 'credentials.json')
 if os.path.exists(token_path):
     creds = Credentials.from_authorized_user_file(token_path, SCOPES)
 # If there are no (valid) credentials available, let the user log in.
-if not creds or not creds.valid:
-    if creds and creds.expired and creds.refresh_token:
-        creds.refresh(Request())
+try:
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file(
+                creds_path, SCOPES)
+            creds = flow.run_local_server(port=0)
+        # Save the credentials for the next run
+        with open(token_path, 'w') as token:
+            token.write(creds.to_json())
+except FileNotFoundError:
+    if not os.path.exists(config_dir):
+        os.mkdir(config_dir)
+        print(f"Config directory created at {config_dir}, run command again after placing credentials.json in config directory")
+        quit()
     else:
-        flow = InstalledAppFlow.from_client_secrets_file(
-            creds_path, SCOPES)
-        creds = flow.run_local_server(port=0)
-    # Save the credentials for the next run
-    with open(token_path, 'w') as token:
-        token.write(creds.to_json())
+        print("Move credentials.json to config dir")
+        quit()

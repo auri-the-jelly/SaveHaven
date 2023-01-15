@@ -211,7 +211,7 @@ def list_folder(folder_id: str) -> list:
         print(F'An error occurred: {error}')
         files = None
 
-def upload_file(path: str, name: str, parent: str = None) -> str:
+def upload_file(path: str, name: str, parent: str = None, folder: bool = False) -> str:
     '''
     Uploads file to Google Drive
 
@@ -226,6 +226,14 @@ def upload_file(path: str, name: str, parent: str = None) -> str:
     parent: str, optional
         ID of the parent Google Drive folder
     '''
+    if folder:
+        zip_location = path + '.zip'
+        if os.path.exists(zip_location):
+            os.remove(zip_location)
+        print("Zipping")
+        make_archive(path, 'zip', path)
+        print("Uploading")
+        path = zip_location
     file_id = None
     try:
         service = build('drive', 'v3', credentials=creds)
@@ -316,12 +324,12 @@ def heroic_sync(save_dirs: list, root: str):
                     continue
                 else:
                     print("Sync cancelled")
-        zip_location = selected_game.path + '.zip'
+        '''zip_location = selected_game.path + '.zip'
         if os.path.exists(zip_location):
             os.remove(zip_location)
         print("Zipping")
-        shutil.make_archive(selected_game.path, 'zip', selected_game.path)
-        print("Uploading")
+        make_archive(selected_game.path, 'zip', selected_game.path)
+        print("Uploading")'''
         file_id = upload_file(zip_location, selected_game.name + '.zip', heroic_folder)
         save_json['games'][selected_game.name]['uploaded'] = float(datetime.now().strftime("%s"))
         print(f"Finished {selected_game.name}")
