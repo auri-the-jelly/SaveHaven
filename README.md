@@ -7,13 +7,11 @@ Not currently operational
 
 #### Currently
 --------------
-Custom directory support
+Emulator support
 
 #### Planned
 ------------
 Steam, GOG and Legendary and Wine EGS support
-
-Emulator support
 
 Game by game support for save file location instead of uploading the whole prefix using PCGamingWiki
 
@@ -24,6 +22,8 @@ Heroic support
 SQLite3 db to document syncs
 
 Argparse
+
+Custom directory support
 
 ## For those poor souls who stumbled upon this project and want to contribute for god knows why
 
