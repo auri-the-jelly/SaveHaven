@@ -390,9 +390,11 @@ def search_dir(root: str):
 
         # Selecting games to sync
         while True:
-            sync_nums = input("Enter range (3-5) or indexes (1,3,5): ")
+            sync_nums = input("Enter range (3-5) or indexes (1,3,5), q to quit and empty for all: ")
             valid_chars = "1234567890-,"
             valid = True
+            if 'q' or 'Q' in sync_nums:
+                quit()
             for i in sync_nums:
                 if i not in valid_chars:
                     print("Invalid characters")
@@ -457,9 +459,11 @@ def sync():
             print(f"{i + 1}. {launchers[i]}")
 
         while True:
-            launcher_nums = input("Enter range (3-5) or indexes (1,3,5): ")
+            launcher_nums = input("Enter range (3-5) or indexes (1,3,5), q to quit and empty for all: ")
             valid_chars = "1234567890-,"
             valid = True
+            if 'q' or 'Q' in launcher_nums:
+                quit()
             for i in launcher_nums:
                 if i not in valid_chars:
                     print("Invalid characters")
