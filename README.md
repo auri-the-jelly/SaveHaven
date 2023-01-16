@@ -7,13 +7,15 @@ Not currently operational
 
 #### Currently
 --------------
-Emulator support
+Steam support
 
 #### Planned
 ------------
-Steam, GOG and Legendary and Wine EGS support
+GOG and Legendary and Wine EGS support
 
 Game by game support for save file location instead of uploading the whole prefix using PCGamingWiki
+
+Emulator support
 
 #### Barely functional
 ----------------------
