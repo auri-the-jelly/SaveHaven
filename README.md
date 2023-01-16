@@ -11,7 +11,7 @@ Steam support
 
 #### Planned
 ------------
-GOG and Legendary and Wine EGS support
+GOG and Legendary ~~and Wine EGS~~ support (Wine EGS Scrapped because save file locations for Epic Games isn't well documented and it's just better to use Heroic or Legendary)
 
 Game by game support for save file location instead of uploading the whole prefix using PCGamingWiki
 
