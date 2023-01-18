@@ -7,13 +7,11 @@ Not currently operational
 
 #### Currently
 --------------
-Steam support
+
 
 #### Planned
 ------------
-GOG and Legendary ~~and Wine EGS~~ support (Wine EGS Scrapped because save file locations for Epic Games isn't well documented and it's just better to use Heroic or Legendary)
-
-Game by game support for save file location instead of uploading the whole prefix using PCGamingWiki
+GOG and Legendary support
 
 Emulator support
 
@@ -26,6 +24,12 @@ SQLite3 db to document syncs
 Argparse
 
 Custom directory support
+
+#### Scrapped
+
+Steam support - Games are stored in different places for each game and games may not always use the prefix, and PCGamingWiki is not reliable enough for Linux games
+
+Wine EGS - Same issue as steam.
 
 ## For those poor souls who stumbled upon this project and want to contribute for god knows why
 
