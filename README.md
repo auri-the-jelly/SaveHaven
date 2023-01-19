@@ -15,10 +15,12 @@ GOG and Legendary support
 
 Emulator support
 
-#### Barely functional
-----------------------
 Nextcloud
 
+Minecraft
+
+#### Barely functional
+----------------------
 Heroic support
 
 SQLite3 db to document syncs
