@@ -17,6 +17,8 @@ Emulator support
 
 #### Barely functional
 ----------------------
+Nextcloud
+
 Heroic support
 
 SQLite3 db to document syncs
