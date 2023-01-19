@@ -1,0 +1,10 @@
+argparse
+requests
+configparser
+datetime
+appdirs
+bs4
+google
+google-api-python-client 
+google-auth-httplib2 
+google-auth-oauthlib
