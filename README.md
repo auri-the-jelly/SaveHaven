@@ -7,23 +7,29 @@ Not currently operational
 
 #### Currently
 --------------
-Argparse
+
 
 #### Planned
 ------------
-Steam, GOG and Legendary and Wine EGS support
-
-Custom directory support
+GOG and Legendary support
 
 Emulator support
-
-Game by game support for save file location instead of uploading the whole prefix using PCGamingWiki
 
 #### Barely functional
 ----------------------
 Heroic support
 
 SQLite3 db to document syncs
+
+Argparse
+
+Custom directory support
+
+#### Scrapped
+
+Steam support - Games are stored in different places for each game and games may not always use the prefix, and PCGamingWiki is not reliable enough for Linux games
+
+Wine EGS - Same issue as steam.
 
 ## For those poor souls who stumbled upon this project and want to contribute for god knows why
 
