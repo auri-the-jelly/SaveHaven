@@ -19,6 +19,8 @@ Nextcloud
 
 Minecraft
 
+Steam support 
+
 #### Barely functional
 ----------------------
 Heroic support
@@ -31,9 +33,7 @@ Custom directory support
 
 #### Scrapped
 
-Steam support - Games are stored in different places for each game and games may not always use the prefix, and PCGamingWiki is not reliable enough for Linux games
-
-Wine EGS - Same issue as steam.
+Wine EGS - - Games are stored in different places for each game and games may not always use the prefix, and PCGamingWiki is not reliable enough for Linux games
 
 ## For those poor souls who stumbled upon this project and want to contribute for god knows why
 
