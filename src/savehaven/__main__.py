@@ -19,15 +19,18 @@ def main():
 
     upload_parser = commands.add_parser("upload", help="Upload path to google drive")
     upload_parser.add_argument("path", type=str, help="Path to upload")
+    upload_parser.add_argument('-n', '--name', type=str, help="Name of the zip to upload", required=False)
 
     cfg_parser = commands.add_parser("updatecfg", help="Update config with launchers")
 
     args = parser.parse_args()
     if args.command == "upload" and args.path and os.path.exists(args.path):
         root = create_folder("SaveHaven")
-        file_a = args.path.split("/")[-1]
-        file_b = args.path.split("/")[-2]
-        file_name = (file_a if file_a else file_b)  + ".zip"
+        if not args.name:
+            file_a = args.path.split("/")[-1]
+            file_b = args.path.split("/")[-2]
+            file_name = (file_a if file_a or file_a == "/" else file_b)  + ".zip"
+        else: file_name = args.name
         upload_file(args.path, file_name, root, os.path.isdir(args.path))
     elif args.command == "sync":
         sync()

@@ -245,11 +245,13 @@ def upload_file(path: str, name: str, parent: str = None, folder: bool = False) 
         ID of the parent Google Drive folder
     """
     if folder:
-        zip_location = path + ".zip"
+        if path[-1] == '/':
+            path = path[:-1]
+        zip_location = path + name + ".zip"
         if os.path.exists(zip_location):
             os.remove(zip_location)
         print("Zipping")
-        make_archive(path, "zip", path)
+        make_archive(path + name, "zip", path)
         path = zip_location
     file_id = None
     try:
@@ -264,7 +266,7 @@ def upload_file(path: str, name: str, parent: str = None, folder: bool = False) 
         file = (
             service.files()
             .create(
-                body={"name": name, "parents": [parent]}, media_body=media, fields="id"
+                body={"name": name if ".zip" in name else name + ".zip", "parents": [parent]}, media_body=media, fields="id"
             )
             .execute()
         )
@@ -308,6 +310,33 @@ def delete_file(file_id):
 
 # region SaveSync functions
 
+def pcgw_search(search_term: str, steam_id: bool = False) -> str:
+    if steam_id:
+        search_url = "https://pcgamingwiki.com/api/appid.php?appid="
+    else:
+        search_url = "https://www.pcgamingwiki.com/w/index.php?search="
+    search_term = search_term.replace(' ', '+')
+    result = requests.get(search_url + search_term)
+    search_soup = BeautifulSoup(result.content, "html.parser")
+    if search_soup.find(class_="mw-search-result-heading"):
+        print("https://www.pcgamingwiki.com" + search_soup.find(class_="mw-search-result-heading").find("a")['href'])
+        search_soup = BeautifulSoup(requests.get("https://www.pcgamingwiki.com" + search_soup.find(class_="mw-search-result-heading").find("a")['href']).content, "html.parser")
+    try:
+        gamedata_table = search_soup.find_all(id="table-gamedata")[1]
+        for tr in gamedata_table.find_all("tr"):
+            for span in tr.find_all("span"):
+                user_id = os.listdir(os.path.join(os.path.expanduser("~"), ".var", "app", "com.valvesoftware.Steam", ".steam", "steam", "userdata"))[0]
+                for data in span(['style', 'script']):
+                    # Remove tags
+                    data.decompose()
+                path = ''.join(span.stripped_strings) if "Steam" in ''.join(span.stripped_strings) else ""
+                path = path.replace("<Steam-folder>", ".var/app/com.valvesoftware.Steam/.steam/steam").replace('\\', '/').replace("<user-id>", user_id) if path else ""
+                if path and "pfx" not in path: 
+                    path = os.path.join(os.path.expanduser('~'), *path.split('/'))
+                    if os.path.exists(path):
+                        print(path)
+    except IndexError:
+        print(search_url + search_term)
 
 def gen_soup(url: str):
     result = requests.get(url)
@@ -327,17 +356,10 @@ def steam_sync(root: str):
     
     pcgw_api_url = "https://pcgamingwiki.com/api/appid.php?appid="
     steam_games = []
-    for appid in os.listdir(
-        os.path.join(steam_dir, "steam", "steamapps", "compatdata")
+    for game_title in os.listdir(
+        os.path.join(steam_dir, "steam", "steamapps", "common")
     ):
-        game_path = os.path.join(steam_dir, "steam", "steamapps", "compatdata", appid)
-        pcgw_url = pcgw_api_url + appid
-        print(pcgw_url)
-        pcgw_soup = gen_soup(pcgw_url)
-        if not pcgw_soup.find(string="No such AppID."):
-            for game_title in pcgw_soup.find_all(class_="article-title"):
-                print(game_title.text)
-                steam_games.append(SaveDir(game_title.text, game_path, os.path.getmtime(os.path.join(steam_dir, "steam", "steamapps", "compatdata", appid))))
+        pcgw_search(game_title)
         
     for steam_game in steam_games:
         print(steam_game)
