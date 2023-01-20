@@ -11,6 +11,9 @@ Not currently operational
 
 #### Planned
 ------------
+
+Backup/Multiple instances
+
 GOG and Legendary support
 
 Emulator support
@@ -19,7 +22,7 @@ Nextcloud
 
 Minecraft
 
-Steam support 
+Steam support
 
 #### Barely functional
 ----------------------
