@@ -245,7 +245,7 @@ def upload_file(path: str, name: str, parent: str = None, folder: bool = False) 
         ID of the parent Google Drive folder
     """
     if folder:
-        if path[-1] == '/':
+        if path[-1] == "/":
             path = path[:-1]
         zip_location = path + name + ".zip"
         if os.path.exists(zip_location):
@@ -266,7 +266,12 @@ def upload_file(path: str, name: str, parent: str = None, folder: bool = False) 
         file = (
             service.files()
             .create(
-                body={"name": name if ".zip" in name else name + ".zip", "parents": [parent]}, media_body=media, fields="id"
+                body={
+                    "name": name if ".zip" in name else name + ".zip",
+                    "parents": [parent],
+                },
+                media_body=media,
+                fields="id",
             )
             .execute()
         )
@@ -310,38 +315,106 @@ def delete_file(file_id):
 
 # region SaveSync functions
 
+
 def pcgw_search(search_term: str, steam_id: bool = False) -> str:
+    """
+    Cases:
+        If Windows and Steam and Steam Play - Use steam directory
+        If Windows and Steam Play - Use prefix + windows dir
+        If Wind
+    """
     if steam_id:
         search_url = "https://pcgamingwiki.com/api/appid.php?appid="
     else:
         search_url = "https://www.pcgamingwiki.com/w/index.php?search="
-    search_term = search_term.replace(' ', '+')
+    search_term = search_term.replace(" ", "+")
     result = requests.get(search_url + search_term)
     search_soup = BeautifulSoup(result.content, "html.parser")
     if search_soup.find(class_="mw-search-result-heading"):
-        print("https://www.pcgamingwiki.com" + search_soup.find(class_="mw-search-result-heading").find("a")['href'])
-        search_soup = BeautifulSoup(requests.get("https://www.pcgamingwiki.com" + search_soup.find(class_="mw-search-result-heading").find("a")['href']).content, "html.parser")
+        print(
+            "https://www.pcgamingwiki.com"
+            + search_soup.find(class_="mw-search-result-heading").find("a")["href"]
+        )
+        search_soup = BeautifulSoup(
+            requests.get(
+                "https://www.pcgamingwiki.com"
+                + search_soup.find(class_="mw-search-result-heading").find("a")["href"]
+            ).content,
+            "html.parser",
+        )
     try:
         gamedata_table = search_soup.find_all(id="table-gamedata")[1]
-        for tr in gamedata_table.find_all("tr"):
+        platform_list = ["Windows", "Steam", "Steam Play"]
+        tr_list = gamedata_table.find_all("tr")
+        save_paths = {}
+        if all([plat in gamedata_table.text for plat in platform_list]):
+            for tr in tr_list:
+                if "Windows" in tr.text:
+                    save_paths["Windows"] = tr
+                elif "Steam Play" in tr.text:
+                    save_paths["Proton"] = tr
+        else:
+            for tr in tr_list:
+                if "Steam" in tr.text and not "Steam Play" in tr.text:
+                    save_paths["Steam"] = tr
+
+        user_id = os.listdir(
+            os.path.join(
+                os.path.expanduser("~"),
+                ".var",
+                "app",
+                "com.valvesoftware.Steam",
+                ".steam",
+                "steam",
+                "userdata",
+            )
+        )[0]
+        steam_dir = ".var/app/com.valvesoftware.Steam/.steam/steam"
+        common_dir = ".var/app/com.valvesoftware.Steam/.steam/steam/steamapps/common"
+        user_profile = "drive_c/users/steamuser"
+        for plat, tr in save_paths.items():
             for span in tr.find_all("span"):
-                user_id = os.listdir(os.path.join(os.path.expanduser("~"), ".var", "app", "com.valvesoftware.Steam", ".steam", "steam", "userdata"))[0]
-                for data in span(['style', 'script']):
+                for data in span(["style", "script"]):
                     # Remove tags
                     data.decompose()
-                path = ''.join(span.stripped_strings) if "Steam" in ''.join(span.stripped_strings) else ""
-                path = path.replace("<Steam-folder>", ".var/app/com.valvesoftware.Steam/.steam/steam").replace('\\', '/').replace("<user-id>", user_id) if path else ""
-                if path and "pfx" not in path: 
-                    path = os.path.join(os.path.expanduser('~'), *path.split('/'))
-                    if os.path.exists(path):
-                        print(path)
+                path = "".join(span.stripped_strings)
+                path = (
+                    path.replace("<Steam-folder>", steam_dir)
+                    .replace("%LOCALAPPDATA%", user_profile + "/AppData/Local/")
+                    .replace("%USERPROFILE%", user_profile)
+                    .replace("<path-to-game>", common_dir + "/" + search_term)
+                    .replace("\\", "/")
+                    .replace("<user-id>", user_id)
+                    if path
+                    else ""
+                )
+                if path:
+                    path = os.path.join(*path.split("/"))
+                    save_paths[plat] = path
+
+            if (
+                save_paths["Proton"]
+                and "pfx" in save_paths["Proton"]
+                and not "<path-to-game>" in save_paths["Windows"]
+            ):
+                print(
+                    f"Proton: \n    {os.path.join(os.path.expanduser('~'), save_paths['Proton'], save_paths['Windows'])}"
+                )
+                print(
+                    f"Exists: \n    {os.path.exists(os.path.join(save_paths['Proton'], save_paths['Windows']))}"
+                )
+            else:
+                print(f"Steam: \n   {path}")
+                print(f"Exists: \n  {path}")
     except IndexError:
         print(search_url + search_term)
+
 
 def gen_soup(url: str):
     result = requests.get(url)
     result_soup = BeautifulSoup(result.content, "html.parser")
     return result_soup
+
 
 def steam_sync(root: str):
     config = configparser.ConfigParser()
@@ -353,14 +426,14 @@ def steam_sync(root: str):
         steam_dir = os.path.join(
             os.path.expanduser("~"), ".var", "app", "com.valvesoftware.Steam", ".steam"
         )
-    
+
     pcgw_api_url = "https://pcgamingwiki.com/api/appid.php?appid="
     steam_games = []
     for game_title in os.listdir(
         os.path.join(steam_dir, "steam", "steamapps", "common")
     ):
         pcgw_search(game_title)
-        
+
     for steam_game in steam_games:
         print(steam_game)
 
@@ -551,6 +624,7 @@ def search_dir(root: str):
     if "Steam" in launchers:
         steam_sync(root)
 
+
 def sync():
     config = os.path.join(config_dir, "config.ini")
     if not os.path.exists(config):
@@ -564,6 +638,7 @@ def sync():
 
     # Search for save file directories
     search_dir(folder)
+
 
 def download(file_id: str):
     try:
@@ -585,6 +660,7 @@ def download(file_id: str):
 
     pass
 
+
 def get_save_location(name: str) -> str:
     steam_search_url = "https://store.steampowered.com/search/?term="
     search_term = name.replace(" ", "+")
@@ -593,6 +669,7 @@ def get_save_location(name: str) -> str:
     result = search_soup.find("a", class_="search_result_row")
     game_id = result["href"].replace("https://store.steampowered.com/app/", "")
     game_id = game_id[: game_id.index("/")]
+
 
 def update_launchers():
     """
@@ -688,5 +765,6 @@ def update_launchers():
 
     with open(os.path.join(config_dir, "config.ini"), "w") as config_file:
         config.write(config_file)
+
 
 # endregion
