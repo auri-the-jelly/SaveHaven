@@ -24,6 +24,8 @@ Minecraft
 
 Steam support
 
+Multiple save files
+
 #### Barely functional
 ----------------------
 Heroic support
