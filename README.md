@@ -8,6 +8,7 @@ Not currently operational
 #### Currently
 --------------
 
+Minecraft
 
 #### Planned
 ------------
@@ -19,8 +20,6 @@ GOG and Legendary support
 Emulator support
 
 Nextcloud
-
-Minecraft
 
 Steam support
 
