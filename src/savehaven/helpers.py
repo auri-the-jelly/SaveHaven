@@ -350,6 +350,7 @@ def pcgw_search(search_term: str, steam_id: bool = False) -> str:
         if all([plat in gamedata_table.text for plat in platform_list]):
             for tr in tr_list:
                 if "Windows" in tr.text:
+                    print(tr)
                     save_paths["Windows"] = tr
                 elif "Steam Play" in tr.text:
                     save_paths["Proton"] = tr
@@ -392,8 +393,9 @@ def pcgw_search(search_term: str, steam_id: bool = False) -> str:
                     path = os.path.join(*path.split("/"))
                     save_paths[plat] = path
 
-            if (
-                save_paths["Proton"]
+            """if (
+                "Proton" in save_paths.keys()
+                and save_paths["Proton"]
                 and "pfx" in save_paths["Proton"]
                 and not "<path-to-game>" in save_paths["Windows"]
             ):
@@ -403,9 +405,12 @@ def pcgw_search(search_term: str, steam_id: bool = False) -> str:
                 print(
                     f"Exists: \n    {os.path.exists(os.path.join(save_paths['Proton'], save_paths['Windows']))}"
                 )
+                print(f"Windows: \n    {save_paths['Windows']}")
             else:
                 print(f"Steam: \n   {path}")
                 print(f"Exists: \n  {path}")
+                if "Windows" in save_paths.keys():
+                    print(f"Windows: \n    {save_paths['Windows']}")"""
     except IndexError:
         print(search_url + search_term)
 
@@ -491,6 +496,20 @@ def heroic_sync(root: str):
             json.dump(save_json, sjson, indent=4)
 
     # Selecting games to sync
+    indices = selector(
+        "Enter range (3-5) or indexes (1,3,5), q to quit and empty for all: ",
+        None,
+        "1234567890-,",
+        len(heroic_saves),
+        True,
+    )
+    if indices[0] == "skip":
+        return
+    print("Backing up these games: ")
+    for i in range(len(indices)):
+        indices[i] = int(indices[i]) - 1
+        print(heroic_saves[indices[i]])
+    """
     while True:
         sync_nums = input(
             "Enter range (3-5) or indexes (1,3,5), q to quit and empty for all: "
@@ -538,7 +557,7 @@ def heroic_sync(root: str):
                 print(heroic_saves[indices[i]])
             break
         except Exception as e:
-            print("Error occured: ", e)
+            print("Error occured: ", e)"""
 
     selected_games = [heroic_saves[index] for index in indices]
     saves_file = open(os.path.join(config_dir, "config.json"), "r")
@@ -600,6 +619,14 @@ def heroic_sync(root: str):
         json.dump(save_json, saves_file)
 
 
+def minecraft_sync(root: str):
+    mc_launchers = ["Official Launcher", "Prism Launcher", "MultiMC"]
+    indices = selector(
+        "Choose launcher:", mc_launchers, "0123456789-,", len(mc_launchers), False
+    )
+    print(mc_launchers[indices - 1])
+
+
 def search_dir(root: str):
     """
     Scan directories for save files
@@ -621,8 +648,12 @@ def search_dir(root: str):
     if "Games" in os.listdir(home_path) and "Heroic" in launchers:
         heroic_sync(root)
 
+    if "Minecraft" in launchers:
+        minecraft_sync(root)
+    """
     if "Steam" in launchers:
         steam_sync(root)
+    """
 
 
 def sync():
@@ -681,7 +712,7 @@ def update_launchers():
         List of launchers
 
     """
-    launchers = ["Steam", "Heroic", "Legendary", "GOG Galaxy"]
+    launchers = ["Steam", "Heroic", "Legendary", "GOG Galaxy", "Minecraft"]
     for i in range(len(launchers)):
         print(f"{i + 1}. {launchers[i]}")
 
@@ -752,6 +783,9 @@ def update_launchers():
             if selected.isnumeric() and int(selected) > 0 and int(selected) < 4:
                 selected = int(selected)
                 print(f"Selecting: {package_managers[selected - 1]}")
+            else:
+                print("Invalid input try again")
+                quit()
 
             config = configparser.ConfigParser()
             config.read(os.path.join(config_dir, "config.ini"))
@@ -765,6 +799,64 @@ def update_launchers():
 
     with open(os.path.join(config_dir, "config.ini"), "w") as config_file:
         config.write(config_file)
+
+
+def selector(
+    message: str, item_list: list, valid_chars: str, length: int, multi_input: bool
+) -> list:
+    print(message)
+    if item_list:
+        for i in range(len(item_list)):
+            print(f"{i}. {item_list[i]}")
+
+    while True:
+        nums = input(message)
+        valid = True
+        if "q" in nums:
+            quit()
+        elif "s" in nums:
+            return ["skip"]
+        for i in nums:
+            if i not in valid_chars:
+                print("Invalid characters")
+                valid = False
+                break
+            if i.isnumeric() and int(i) > (len(item_list) if item_list else length):
+                print("Index out of range")
+                valid = False
+                break
+        if valid == False:
+            continue
+        if nums.count("-") > 1 or ("-" in nums and "," in nums):
+            print("Specify no more than range, or use list")
+            continue
+        try:
+            if multi_input:
+                if "-" in nums:
+                    indices = list(
+                        range(int(nums.split("-")[0]), int(nums.split("-")[1]) + 1)
+                    )
+
+                elif "," in nums:
+                    indices = nums.split(",")
+
+                elif len(nums) == 1:
+                    indices = [int(nums)]
+
+                elif nums == "":
+                    indices = list(
+                        range(1, len(item_list) if item_list else length + 1)
+                    )
+            else:
+                if len(nums) > 1 or not nums.isnumeric():
+                    print("Choose 1")
+                    continue
+                elif nums.isnumeric():
+                    indices = [int(nums)]
+
+            return indices
+        except Exception as e:
+            print("Error occured: ", e)
 
 
 # endregion
