@@ -19,15 +19,23 @@ from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 from google_auth_oauthlib.flow import InstalledAppFlow
 
-SCOPES = ["https://www.googleapis.com/auth/drive"]
 from savehaven.configs import creds
-
-config_dir = user_config_dir("SaveHaven", "Aurelia")
-if not os.path.exists(config_dir):
-    os.mkdir(config_dir)
 
 
 # endregion
+
+# region Variables
+SCOPES = ["https://www.googleapis.com/auth/drive"]
+config_dir = user_config_dir("SaveHaven", "Aurelia")
+if not os.path.exists(config_dir):
+    os.mkdir(config_dir)
+config_file = os.path.join(config_dir, "config.json")
+home_path = os.path.expanduser("~")
+games_dir = os.path.join(home_path, "Games")
+heroic_dir = os.path.join(games_dir, "Heroic", "Prefixes")
+heroic_saves = []
+# endregion
+
 # region Classes
 
 
@@ -58,8 +66,9 @@ class SaveDir:
 
 # endregion
 
+
 # region Drive Functions
-def mod_time(file_id: str) -> datetime:
+def mod_time(file_id: str) -> datetime:  # sourcery skip: do-not-use-bare-except
     """
     Returns when a given file was last modified
 
@@ -80,8 +89,7 @@ def mod_time(file_id: str) -> datetime:
 
         file = service.files().get(fileId=file_id, fields="modifiedTime").execute()
         modified_time = file["modifiedTime"]
-        date_time_obj = datetime.strptime(modified_time, "%Y-%m-%dT%H:%M:%S.%fZ")
-        return date_time_obj
+        return datetime.strptime(modified_time, "%Y-%m-%dT%H:%M:%S.%fZ")
 
     except:
         print("Failed")
@@ -153,10 +161,7 @@ def create_folder(filename: str, parent: str = None) -> str:
     """
 
     try:
-        # create drive api client
-        folder_id = search_file("application/vnd.google-apps.folder", filename)
-
-        if folder_id:
+        if folder_id := search_file("application/vnd.google-apps.folder", filename):
             return folder_id[0]["id"]
 
     except HttpError as error:
@@ -267,7 +272,7 @@ def upload_file(path: str, name: str, parent: str = None, folder: bool = False) 
             service.files()
             .create(
                 body={
-                    "name": name if ".zip" in name else name + ".zip",
+                    "name": name if ".zip" in name else f"{name}.zip",
                     "parents": [parent],
                 },
                 media_body=media,
@@ -316,6 +321,22 @@ def delete_file(file_id):
 # region SaveSync functions
 
 
+def load_config():
+    save_json = {"games": {}}
+    if os.path.exists(config_file):
+        with open(config_file, "r") as sjson:
+            try:
+                save_json = json.load(sjson)
+            except json.decoder.JSONDecodeError:
+                return {"games": {}}
+    return save_json
+
+
+def save_config(save_json):
+    with open(config_file, "w") as sjson:
+        json.dump(save_json, sjson, indent=4)
+
+
 def pcgw_search(search_term: str, steam_id: bool = False) -> str:
     """
     Cases:
@@ -343,82 +364,69 @@ def pcgw_search(search_term: str, steam_id: bool = False) -> str:
             "html.parser",
         )
     try:
-        gamedata_table = search_soup.find_all(id="table-gamedata")[1]
-        platform_list = ["Windows", "Steam", "Steam Play"]
-        tr_list = gamedata_table.find_all("tr")
-        save_paths = {}
-        if all([plat in gamedata_table.text for plat in platform_list]):
-            for tr in tr_list:
-                if "Windows" in tr.text:
-                    print(tr)
-                    save_paths["Windows"] = tr
-                elif "Steam Play" in tr.text:
-                    save_paths["Proton"] = tr
-        else:
-            for tr in tr_list:
-                if "Steam" in tr.text and not "Steam Play" in tr.text:
-                    save_paths["Steam"] = tr
-
-        user_id = os.listdir(
-            os.path.join(
-                os.path.expanduser("~"),
-                ".var",
-                "app",
-                "com.valvesoftware.Steam",
-                ".steam",
-                "steam",
-                "userdata",
-            )
-        )[0]
-        steam_dir = ".var/app/com.valvesoftware.Steam/.steam/steam"
-        common_dir = ".var/app/com.valvesoftware.Steam/.steam/steam/steamapps/common"
-        user_profile = "drive_c/users/steamuser"
-        for plat, tr in save_paths.items():
-            for span in tr.find_all("span"):
-                for data in span(["style", "script"]):
-                    # Remove tags
-                    data.decompose()
-                path = "".join(span.stripped_strings)
-                path = (
-                    path.replace("<Steam-folder>", steam_dir)
-                    .replace("%LOCALAPPDATA%", user_profile + "/AppData/Local/")
-                    .replace("%USERPROFILE%", user_profile)
-                    .replace("<path-to-game>", common_dir + "/" + search_term)
-                    .replace("\\", "/")
-                    .replace("<user-id>", user_id)
-                    if path
-                    else ""
-                )
-                if path:
-                    path = os.path.join(*path.split("/"))
-                    save_paths[plat] = path
-
-            """if (
-                "Proton" in save_paths.keys()
-                and save_paths["Proton"]
-                and "pfx" in save_paths["Proton"]
-                and not "<path-to-game>" in save_paths["Windows"]
-            ):
-                print(
-                    f"Proton: \n    {os.path.join(os.path.expanduser('~'), save_paths['Proton'], save_paths['Windows'])}"
-                )
-                print(
-                    f"Exists: \n    {os.path.exists(os.path.join(save_paths['Proton'], save_paths['Windows']))}"
-                )
-                print(f"Windows: \n    {save_paths['Windows']}")
-            else:
-                print(f"Steam: \n   {path}")
-                print(f"Exists: \n  {path}")
-                if "Windows" in save_paths.keys():
-                    print(f"Windows: \n    {save_paths['Windows']}")"""
+        return _extracted_from_pcgw_search_28(search_soup, search_term)
     except IndexError:
         print(search_url + search_term)
 
 
+# TODO Rename this here and in `pcgw_search`
+def _extracted_from_pcgw_search_28(search_soup, search_term):
+    gamedata_table = search_soup.find_all(id="table-gamedata")[1]
+    platform_list = [
+        "Windows",
+        "Steam",
+        "Steam Play",
+        "Epic Games Launcher",
+        "GOG.com",
+        "Microsoft Store",
+    ]
+    tr_list = gamedata_table.find_all("tr")
+    save_paths = {}
+    for tr in tr_list:
+        for plat in platform_list:
+            if "Steam" in tr.text:
+                if "Steam Play" not in tr.text:
+                    save_paths["Steam"] = tr
+            elif plat in tr.text:
+                print(tr)
+                save_paths[plat] = tr
+
+    user_id = os.listdir(
+        os.path.join(
+            os.path.expanduser("~"),
+            ".steam",
+            "steam",
+            "userdata",
+        )
+    )[0]
+    steam_dir = ".var/app/com.valvesoftware.Steam/.steam/steam"
+    common_dir = ".var/app/com.valvesoftware.Steam/.steam/steam/steamapps/common"
+    user_profile = "drive_c/users/steamuser"
+    for plat, tr in save_paths.items():
+        for span in tr.find_all("span"):
+            for data in span(["style", "script"]):
+                # Remove tags
+                data.decompose()
+            path = "".join(span.stripped_strings)
+            path = (
+                path.replace("<Steam-folder>", steam_dir)
+                .replace("%LOCALAPPDATA%", f"{user_profile}/AppData/Local/")
+                .replace("%USERPROFILE%", user_profile)
+                .replace("<path-to-game>", f"{common_dir}/{search_term}")
+                .replace("\\", "/")
+                .replace("<user-id>", user_id)
+                if path
+                else ""
+            )
+
+            path = os.path.join(*path.split("/"))
+            save_paths[plat] = path
+    return save_paths
+
+
 def gen_soup(url: str):
     result = requests.get(url)
-    result_soup = BeautifulSoup(result.content, "html.parser")
-    return result_soup
+    return BeautifulSoup(result.content, "html.parser")
 
 
 def steam_sync(root: str):
@@ -455,11 +463,6 @@ def heroic_sync(root: str):
     root: str
         ID of SaveHaven folder in Google Drive
     """
-    # Save JSON
-    home_path = os.path.expanduser("~")
-    games_dir = os.path.join(home_path, "Games")
-    heroic_dir = os.path.join(games_dir, "Heroic", "Prefixes")
-    heroic_saves = []
     # Add prefixes to list
     for file in os.listdir(heroic_dir):
         if os.path.isdir(os.path.join(heroic_dir, file)):
@@ -468,16 +471,12 @@ def heroic_sync(root: str):
 
     # Read config for added games
     print("Found Heroic game saves:")
-    save_json = {"games": {}}
-    if os.path.exists(os.path.join(config_dir, "config.json")):
-        config_file = open(os.path.join(config_dir, "config.json"))
-        save_json = json.load(config_file)
-        config_file.close()
+    save_json = load_config()
     saves_dict = {"games": {}}
 
     # Add games to config
     for i in range(len(heroic_saves)):
-        if save_json["games"] and not heroic_saves[i].name in save_json["games"].keys():
+        if save_json["games"] and heroic_saves[i].name not in save_json["games"].keys():
             save_json["games"][heroic_saves[i].name] = {
                 "path": heroic_saves[i].path,
                 "uploaded": 0,
@@ -488,12 +487,11 @@ def heroic_sync(root: str):
                 "uploaded": 0,
             }
         print(f"{i+1}. {heroic_saves[i].name}")
-    if not os.path.exists(os.path.join(config_dir, "config.json")):
-        with open(os.path.join(config_dir, "config.json"), "w") as sjson:
-            json.dump(saves_dict, sjson, indent=4)
+
+    if not os.path.exists(config_file):
+        save_config(saves_dict)
     else:
-        with open(os.path.join(config_dir, "config.json"), "w") as sjson:
-            json.dump(save_json, sjson, indent=4)
+        save_config(save_json)
 
     # Selecting games to sync
     indices = selector(
@@ -509,71 +507,20 @@ def heroic_sync(root: str):
     for i in range(len(indices)):
         indices[i] = int(indices[i]) - 1
         print(heroic_saves[indices[i]])
-    """
-    while True:
-        sync_nums = input(
-            "Enter range (3-5) or indexes (1,3,5), q to quit and empty for all: "
-        )
-        valid_chars = "1234567890-,"
-        valid = True
-        if "q" in sync_nums:
-            quit()
-        elif "s" in sync_nums:
-            return
-        for i in sync_nums:
-            if i not in valid_chars:
-                print("Invalid characters")
-                valid = False
-                break
-            if i.isnumeric() and int(i) > len(heroic_saves):
-                print("Index out of range")
-                valid = False
-                break
-        if valid == False:
-            continue
-        if sync_nums.count("-") > 1 or ("-" in sync_nums and "," in sync_nums):
-            print("Specify no more than range, or use list")
-            continue
-        try:
-            if "-" in sync_nums:
-                indices = list(
-                    range(
-                        int(sync_nums.split("-")[0]), int(sync_nums.split("-")[1]) + 1
-                    )
-                )
-
-            elif "," in sync_nums:
-                indices = sync_nums.split(",")
-
-            elif len(sync_nums) == 1:
-                indices = [int(sync_nums)]
-
-            elif sync_nums == "":
-                indices = list(range(1, len(heroic_saves) + 1))
-
-            print("Backing up these games: ")
-            for i in range(len(indices)):
-                indices[i] = int(indices[i]) - 1
-                print(heroic_saves[indices[i]])
-            break
-        except Exception as e:
-            print("Error occured: ", e)"""
 
     selected_games = [heroic_saves[index] for index in indices]
-    saves_file = open(os.path.join(config_dir, "config.json"), "r")
-    save_json = json.load(saves_file)
-    saves_file.close()
+
     for selected_game in selected_games:
         # Find files already in Drive
         heroic_folder = create_folder("Heroic", parent=root)
         files = list_folder(heroic_folder)
         cloud_file = [
-            file for file in files if file["name"] == selected_game.name + ".zip"
+            file for file in files if file["name"] == f"{selected_game.name}.zip"
         ]
 
         print(f"Working on {selected_game.name}")
         # Check if cloud file was modified before or after upload time
-        if len(cloud_file) > 0:
+        if cloud_file:
             date_time_obj = datetime.strptime(
                 cloud_file[0]["modifiedTime"], "%Y-%m-%dT%H:%M:%S.%fZ"
             ).strftime("%s")
@@ -603,14 +550,10 @@ def heroic_sync(root: str):
                     continue
                 else:
                     print("Sync cancelled")
-        """if os.path.exists(zip_location):
-            os.remove(zip_location)
-        print("Zipping")
-        make_archive(selected_game.path, 'zip', selected_game.path)
-        print("Uploading")"""
         file_id = upload_file(
-            selected_game.path, selected_game.name + ".zip", heroic_folder, True
+            selected_game.path, f"{selected_game.name}.zip", heroic_folder, True
         )
+
         save_json["games"][selected_game.name]["uploaded"] = float(
             datetime.now().strftime("%s")
         )
@@ -665,7 +608,7 @@ def sync():
 
     # If SaveHaven folder doesn't exist, create it.
     folder = create_folder(filename="SaveHaven")
-    print("Created " + folder)
+    print(f"Created {folder}")
 
     # Search for save file directories
     search_dir(folder)
@@ -681,15 +624,13 @@ def download(file_id: str):
         file = io.BytesIO()
         downloader = MediaIoBaseDownload(file, request)
         done = False
-        while done is False:
+        while not done:
             status, done = downloader.next_chunk()
             print(f"Download {int(status.progress() * 100)}.")
 
     except HttpError as error:
         print(f"An error occurred: {error}")
         file = None
-
-    pass
 
 
 def get_save_location(name: str) -> str:
@@ -716,11 +657,11 @@ def update_launchers():
     for i in range(len(launchers)):
         print(f"{i + 1}. {launchers[i]}")
 
+    valid_chars = "1234567890-,"
     while True:
         launcher_nums = input(
             "Enter range (3-5) or indexes (1,3,5), q to quit and empty for all: "
         )
-        valid_chars = "1234567890-,"
         valid = True
         if "q" in launcher_nums:
             quit()
@@ -772,33 +713,39 @@ def update_launchers():
         steam_agree = input(
             "Steam has it's own save sync, are you sure you want to backup with SaveHaven? (y/n): "
         )
-        if not "y" in steam_agree:
+        if "y" not in steam_agree:
             selected_launchers.pop(selected_launchers.index("Steam"))
         else:
-            print("Select steam install type:")
-            package_managers = ["Distro", "Flatpak", "Snap (needs testing)"]
-            for i in range(3):
-                print(f"{i + 1}. {package_managers[i]}")
-            selected = input("Enter index: ")
-            if selected.isnumeric() and int(selected) > 0 and int(selected) < 4:
-                selected = int(selected)
-                print(f"Selecting: {package_managers[selected - 1]}")
-            else:
-                print("Invalid input try again")
-                quit()
-
-            config = configparser.ConfigParser()
-            config.read(os.path.join(config_dir, "config.ini"))
-            print(config.sections())
-            config["Steam"] = {"Package_Manager": package_managers[selected - 1]}
-            print(config.sections())
-            with open(os.path.join(config_dir, "config.ini"), "w") as config_file:
-                config.write(config_file)
-
+            config = _extracted_from_update_launchers_74()
     config["Launchers"]["selected"] = ",".join(selected_launchers)
 
     with open(os.path.join(config_dir, "config.ini"), "w") as config_file:
         config.write(config_file)
+
+
+# TODO Rename this here and in `update_launchers`
+def _extracted_from_update_launchers_74():
+    print("Select steam install type:")
+    package_managers = ["Distro", "Flatpak", "Snap (needs testing)"]
+    for i in range(3):
+        print(f"{i + 1}. {package_managers[i]}")
+    selected = input("Enter index: ")
+    if selected.isnumeric() and int(selected) > 0 and int(selected) < 4:
+        selected = int(selected)
+        print(f"Selecting: {package_managers[selected - 1]}")
+    else:
+        print("Invalid input try again")
+        quit()
+
+    result = configparser.ConfigParser()
+    result.read(os.path.join(config_dir, "config.ini"))
+    print(result.sections())
+    result["Steam"] = {"Package_Manager": package_managers[selected - 1]}
+    print(result.sections())
+    with open(os.path.join(config_dir, "config.ini"), "w") as config_file:
+        result.write(config_file)
+
+    return result
 
 
 def selector(
@@ -847,12 +794,11 @@ def selector(
                     indices = list(
                         range(1, len(item_list) if item_list else length + 1)
                     )
-            else:
-                if len(nums) > 1 or not nums.isnumeric():
-                    print("Choose 1")
-                    continue
-                elif nums.isnumeric():
-                    indices = [int(nums)]
+            elif len(nums) > 1 or not nums.isnumeric():
+                print("Choose 1")
+                continue
+            elif nums.isnumeric():
+                indices = [int(nums)]
 
             return indices
         except Exception as e:

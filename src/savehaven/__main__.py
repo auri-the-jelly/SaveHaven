@@ -8,6 +8,8 @@ from savehaven.helpers import *
 
 
 def main():
+    sync()
+    """
     parser = argparse.ArgumentParser(
         prog="SaveHaven",
         description="Upload and sync video game files with Google Drive",
@@ -37,7 +39,7 @@ def main():
     elif args.command == "updatecfg":
         update_launchers()
     else:
-        parser.print_help()
+        parser.print_help()"""
 
 
 if __name__ == "__main__":
