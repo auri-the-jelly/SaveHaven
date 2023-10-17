@@ -444,7 +444,8 @@ def _extracted_from_pcgw_search_28(search_soup, search_term):
                 if path
                 else ""
             )
-            
+            if path.endswith(f"{user_id}/"):
+                path = path.replace(f"{user_id}/", "")
 
             path = os.path.join(*path.split("/"))
             save_paths[plat] = path
