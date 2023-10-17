@@ -322,28 +322,55 @@ def delete_file(file_id):
 
 
 def load_config():
+    """
+    Returns the contents of the configuration file in json format
+
+    Returns
+    -------
+    save_json: dict
+        Contents of the configuration file as a dict.
+    """
     save_json = {"games": {}}
     if os.path.exists(config_file):
         with open(config_file, "r") as sjson:
             try:
                 save_json = json.load(sjson)
             except json.decoder.JSONDecodeError:
-                return {"games": {}}
+                return save_json
     return save_json
 
 
 def save_config(save_json):
+    """
+    Saves a dictionary of configuration settings to the config file
+
+    Parameters
+    ----------
+    save_json : dict
+        Configuration settings in dictionary format
+    """
     with open(config_file, "w") as sjson:
         json.dump(save_json, sjson, indent=4)
 
 
-def pcgw_search(search_term: str, steam_id: bool = False) -> str:
+def pcgw_search(search_term: str, steam_id: bool = False) -> list:
     """
-    Cases:
-        If Windows and Steam and Steam Play - Use steam directory
-        If Windows and Steam Play - Use prefix + windows dir
-        If Wind
+    Parameters
+    ----------
+    search_term : str
+        PCGamingWiki search term
+    steam_id : bool
+        Whether the search term is a Steam ID
+
+    Returns
+    -------
+    _extracted_from_pcgw_search_28 : list
+        List of save locations by platform (Steam, Windows, Epic Games, etc.)
     """
+    # Cases:
+    #    If Windows and Steam and Steam Play - Use steam directory
+    #    If Windows and Steam Play - Use prefix + windows dir
+    #    If Wind
     if steam_id:
         search_url = "https://pcgamingwiki.com/api/appid.php?appid="
     else:
@@ -352,10 +379,10 @@ def pcgw_search(search_term: str, steam_id: bool = False) -> str:
     result = requests.get(search_url + search_term)
     search_soup = BeautifulSoup(result.content, "html.parser")
     if search_soup.find(class_="mw-search-result-heading"):
-        print(
-            "https://www.pcgamingwiki.com"
-            + search_soup.find(class_="mw-search-result-heading").find("a")["href"]
-        )
+        # print(
+        #    "https://www.pcgamingwiki.com"
+        #    + search_soup.find(class_="mw-search-result-heading").find("a")["href"]
+        # )
         search_soup = BeautifulSoup(
             requests.get(
                 "https://www.pcgamingwiki.com"
@@ -388,7 +415,6 @@ def _extracted_from_pcgw_search_28(search_soup, search_term):
                 if "Steam Play" not in tr.text:
                     save_paths["Steam"] = tr
             elif plat in tr.text:
-                print(tr)
                 save_paths[plat] = tr
 
     user_id = os.listdir(
@@ -401,7 +427,7 @@ def _extracted_from_pcgw_search_28(search_soup, search_term):
     )[0]
     steam_dir = ".var/app/com.valvesoftware.Steam/.steam/steam"
     common_dir = ".var/app/com.valvesoftware.Steam/.steam/steam/steamapps/common"
-    user_profile = "drive_c/users/steamuser"
+    user_profile = "drive_c/users/auri"
     for plat, tr in save_paths.items():
         for span in tr.find_all("span"):
             for data in span(["style", "script"]):
@@ -418,6 +444,7 @@ def _extracted_from_pcgw_search_28(search_soup, search_term):
                 if path
                 else ""
             )
+            
 
             path = os.path.join(*path.split("/"))
             save_paths[plat] = path
@@ -425,11 +452,25 @@ def _extracted_from_pcgw_search_28(search_soup, search_term):
 
 
 def gen_soup(url: str):
+    """
+    Generates a BeautifulSoup for a given URL
+
+    Parameters
+    ----------
+    url : str
+        URL to generate a BeautifulSoup
+
+    Returns
+    -------
+    BeautifulSoup : BeautifulSoup
+        Soup for the given URL
+    """
     result = requests.get(url)
     return BeautifulSoup(result.content, "html.parser")
 
 
 def steam_sync(root: str):
+    """ """
     config = configparser.ConfigParser()
     config.read(os.path.join(config_dir, "config.ini"))
     steam_dir = ""
@@ -464,10 +505,10 @@ def heroic_sync(root: str):
         ID of SaveHaven folder in Google Drive
     """
     # Add prefixes to list
-    for file in os.listdir(heroic_dir):
-        if os.path.isdir(os.path.join(heroic_dir, file)):
-            save_path = os.path.join(heroic_dir, file)
-            heroic_saves.append(SaveDir(file, save_path, os.path.getmtime(save_path)))
+    for files in os.listdir(heroic_dir):
+        if os.path.isdir(os.path.join(heroic_dir, files)):
+            save_path = os.path.join(heroic_dir, files)
+            heroic_saves.append(SaveDir(files, save_path, os.path.getmtime(save_path)))
 
     # Read config for added games
     print("Found Heroic game saves:")
