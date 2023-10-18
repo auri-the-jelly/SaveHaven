@@ -2,9 +2,9 @@
 A CLI tool to backup video game save files, launcher agnostically
 
 ## Installation
-  git clone https://github.com/RNKnight1/SaveHaven.git
-  cd SaveHaven
-  pip install -e .
+    git clone https://github.com/RNKnight1/SaveHaven.git
+    cd SaveHaven
+    pip install -e .
 
 Currently only supports Linux and Heroic launcher games.
 
