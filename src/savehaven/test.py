@@ -6,9 +6,53 @@ for files in os.listdir(heroic_dir):
         game_name = save_path.split("/")[-1]
         print(game_name)
         pcgw = pcgw_search(game_name)
+        temp_locations = [
+            pcgw_loc[1]
+            for pcgw_loc in pcgw.items()
+            if pcgw_loc[0]
+            in ["Windows", "Epic Games", "Epic Games Store", "Epic Games Launcher"]
+        ]
+        locations = []
+        for loc in temp_locations:
+            locations.append(loc)
+            if "Documents" in loc:
+                short_loc = loc[: loc.find("/", loc.index("Documents") + 10) + 1]
+                locations.extend(
+                    (
+                        short_loc,
+                        f"{short_loc[:loc.index('Documents') + 10]}My Games/{short_loc[loc.index('Documents') + 10:]}",
+                    )
+                )
+        for location in locations:
+            try_path = os.path.join(save_path, location)
+            if os.path.exists(try_path):
+                print(try_path)
+                break
+        # .../Documents/Payday 2/
+        #              ^        ^
+        # index("Documents" + 10) loc[loc.index("Documents") + 10:]].index("/")
+        """
         save_location = os.path.join(save_path, pcgw["Windows"])
         if os.path.exists(save_location):
             print(os.listdir(save_location))
+        else:
+            doc_loc = save_location.rfind("Documents")
+            if doc_loc != -1:
+                search_location = save_location.split("/")
+                search_location = search_location[
+                    search_location.index("Documents") + 1
+                ]
+                save_location = save_location[: doc_loc + 10] + search_location
+                print(save_location)
+                if os.path.exists(save_location):
+                    print(os.listdir(save_location))
+                else:
+                    save_location = save_location.replace(
+                        "Documents", "Documents/My Games"
+                    )
+                    if os.path.exists(save_location):
+                        print(os.listdir(save_location))"""
+
 """
 Control = pcgw_search("Control")
 Arkham = pcgw_search("Batman Arkham City")
