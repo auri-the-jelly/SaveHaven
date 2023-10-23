@@ -14,20 +14,28 @@ for files in os.listdir(heroic_dir):
         ]
         locations = []
         for loc in temp_locations:
-            locations.append(loc)
+            # locations.append(loc)
+            if os.path.exists(os.path.join(save_path, loc)):
+                print(os.path.join(save_path, loc))
+                break
             if "Documents" in loc:
-                short_loc = loc[: loc.find("/", loc.index("Documents") + 10) + 1]
-                locations.extend(
-                    (
-                        short_loc,
-                        f"{short_loc[:loc.index('Documents') + 10]}My Games/{short_loc[loc.index('Documents') + 10:]}",
-                    )
+                short_loc = os.path.join(
+                    save_path, loc[: loc.find("/", loc.index("Documents") + 10) + 1]
                 )
-        for location in locations:
+                my_games_loc = os.path.join(
+                    save_path,
+                    f"{short_loc[:short_loc.index('Documents') + 10]}My Games/{short_loc[short_loc.index('Documents') + 10:]}",
+                )
+                if os.path.exists(short_loc):
+                    print(short_loc)
+                    break
+                if os.path.exists(my_games_loc):
+                    print(my_games_loc)
+        """for location in locations:
             try_path = os.path.join(save_path, location)
             if os.path.exists(try_path):
                 print(try_path)
-                break
+                break"""
         # .../Documents/Payday 2/
         #              ^        ^
         # index("Documents" + 10) loc[loc.index("Documents") + 10:]].index("/")

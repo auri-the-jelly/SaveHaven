@@ -452,6 +452,34 @@ def _extracted_from_pcgw_search_28(search_soup, search_term):
     return save_paths
 
 
+def check_pcgw_location(game_title: str, platform: str, prefix_path: str):
+    if platform == "Epic":
+        pcgw = pcgw_search(game_title)
+        locations = [
+            pcgw_loc[1]
+            for pcgw_loc in pcgw.items()
+            if pcgw_loc[0] in ["Windows", "Epic Games Launcher"]
+        ]
+        for loc in locations:
+            if os.path.exists(os.path.join(prefix_path, loc)):
+                return os.path.join(prefix_path, loc)
+            if "Documents" in loc:
+                short_loc = os.path.join(
+                    prefix_path, loc[: loc.find("/", loc.index("Documents") + 10) + 1]
+                )
+                my_games_loc = os.path.join(
+                    prefix_path,
+                    f"{short_loc[:short_loc.index('Documents') + 10]}My Games/{short_loc[short_loc.index('Documents') + 10:]}",
+                )
+                if os.path.exists(short_loc):
+                    return short_loc
+                if os.path.exists(my_games_loc):
+                    return my_games_loc
+        return prefix_path
+    elif platform == "Steam":
+        return prefix_path
+
+
 def gen_soup(url: str):
     """
     Generates a BeautifulSoup for a given URL
@@ -514,26 +542,30 @@ def heroic_sync(root: str):
     # Read config for added games
     print("Found Heroic game saves:")
     save_json = load_config()
-    saves_dict = {"games": {}}
+    save_dict = {"games": {}}
 
     # Add games to config
     for i in range(len(heroic_saves)):
-        if save_json["games"] and heroic_saves[i].name not in save_json["games"].keys():
+        if (
+            save_json["games"].keys()
+            and heroic_saves[i].name not in save_json["games"].keys()
+        ):
             save_json["games"][heroic_saves[i].name] = {
                 "path": heroic_saves[i].path,
                 "uploaded": 0,
             }
         else:
-            saves_dict["games"][heroic_saves[i].name] = {
+            save_dict["games"][heroic_saves[i].name] = {
                 "path": heroic_saves[i].path,
                 "uploaded": 0,
             }
         print(f"{i+1}. {heroic_saves[i].name}")
-
-    if not os.path.exists(config_file):
-        save_config(saves_dict)
+    if not os.path.exists(config_file) or not save_json["games"].keys():
+        save_config(save_dict)
     else:
         save_config(save_json)
+
+    save_json = load_config()
 
     # Selecting games to sync
     indices = selector(
@@ -557,7 +589,9 @@ def heroic_sync(root: str):
         heroic_folder = create_folder("Heroic", parent=root)
         files = list_folder(heroic_folder)
         cloud_file = [
-            file for file in files if file["name"] == f"{selected_game.name}.zip"
+            save_file
+            for save_file in files
+            if save_file["name"] == f"{selected_game.name}.zip"
         ]
 
         print(f"Working on {selected_game.name}")
@@ -592,6 +626,9 @@ def heroic_sync(root: str):
                     continue
                 else:
                     print("Sync cancelled")
+        selected_game.path = check_pcgw_location(
+            selected_game.name, "Epic", selected_game.path
+        )
         file_id = upload_file(
             selected_game.path, f"{selected_game.name}.zip", heroic_folder, True
         )
@@ -609,7 +646,7 @@ def minecraft_sync(root: str):
     indices = selector(
         "Choose launcher:", mc_launchers, "0123456789-,", len(mc_launchers), False
     )
-    print(mc_launchers[indices - 1])
+    print(mc_launchers[indices[i] - 1])
 
 
 def search_dir(root: str):
