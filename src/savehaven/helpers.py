@@ -733,6 +733,8 @@ def update_launchers():
 
     """
     launchers = ["Steam", "Heroic", "Legendary", "GOG Galaxy", "Minecraft"]
+    mc_launchers = ["Official", "MultiMC", "Prism Launcher"]
+    steam_package_managers = ["Distro", "Flatpak", "Snap"]
     indices = selector(
         "Enter range (3-5) or indexes (1,3,5), q to quit and empty for all:",
         launchers,
@@ -747,15 +749,38 @@ def update_launchers():
         launcher for launcher in launchers if launchers.index(launcher) in indices
     ]
     config = configparser.ConfigParser()
-    config["Launchers"] = {"selected": ""}
+    config["Launchers"] = config["Minecraft"] = config["Steam"] = {"selected": ""}
+
     if "Steam" in selected_launchers:
         steam_agree = input(
             "Steam has it's own save sync, are you sure you want to backup with SaveHaven? (y/n): "
         )
-        if "y" not in steam_agree:
+        if "y" not in steam_agree.lower():
             selected_launchers.pop(selected_launchers.index("Steam"))
         else:
-            config = _extracted_from_update_launchers_74()
+            selected_package_manager = steam_package_managers[
+                selector(
+                    "Enter index:",
+                    steam_package_managers,
+                    "1234567890-,",
+                    len(steam_package_managers),
+                    False,
+                )[0]
+            ]
+            config["Steam"]["Package_Manager"] = selected_package_manager
+            # config = _extracted_from_update_launchers_74()
+    if "Minecraft" in selected_launchers:
+        selected_mc_launchers = selector(
+            "Enter range (1-3) or indexes (1,3), q to quit and empty for all:",
+            mc_launchers,
+            "1234567890-,",
+            len(mc_launchers),
+            True,
+        )
+        print(config.sections())
+        config["Minecraft"]["selected"] = ",".join(
+            [x for x in mc_launchers if mc_launchers.index(x) in indices]
+        )
     config["Launchers"]["selected"] = ",".join(selected_launchers)
 
     with open(os.path.join(config_dir, "config.ini"), "w") as config_file:
