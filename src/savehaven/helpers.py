@@ -579,7 +579,6 @@ def heroic_sync(root: str):
         return
     print("Backing up these games: ")
     for i in range(len(indices)):
-        indices[i] = int(indices[i]) - 1
         print(heroic_saves[indices[i]])
 
     selected_games = [heroic_saves[index] for index in indices]
@@ -644,10 +643,10 @@ def heroic_sync(root: str):
 def minecraft_sync(root: str):
     mc_launchers = ["Official Launcher", "Prism Launcher", "MultiMC"]
     indices = selector(
-        "Choose launcher:", mc_launchers, "0123456789-,", len(mc_launchers), False
+        "Choose launcher:", mc_launchers, "1234567890-,", len(mc_launchers), False
     )
     for i in indices:
-        print(mc_launchers[indices[i] - 1])
+        print(mc_launchers[indices[i]])
 
 
 def search_dir(root: str):
@@ -734,6 +733,34 @@ def update_launchers():
 
     """
     launchers = ["Steam", "Heroic", "Legendary", "GOG Galaxy", "Minecraft"]
+    indices = selector(
+        "Enter range (3-5) or indexes (1,3,5), q to quit and empty for all:",
+        launchers,
+        "1234567890-,",
+        len(launchers),
+        True,
+    )
+    print("Selecting these launchers:")
+    for i in indices:
+        print(launchers[i])
+    selected_launchers = [
+        launcher for launcher in launchers if launchers.index(launcher) in indices
+    ]
+    config = configparser.ConfigParser()
+    config["Launchers"] = {"selected": ""}
+    if "Steam" in selected_launchers:
+        steam_agree = input(
+            "Steam has it's own save sync, are you sure you want to backup with SaveHaven? (y/n): "
+        )
+        if "y" not in steam_agree:
+            selected_launchers.pop(selected_launchers.index("Steam"))
+        else:
+            config = _extracted_from_update_launchers_74()
+    config["Launchers"]["selected"] = ",".join(selected_launchers)
+
+    with open(os.path.join(config_dir, "config.ini"), "w") as config_file:
+        config.write(config_file)
+    """
     for i in range(len(launchers)):
         print(f"{i + 1}. {launchers[i]}")
 
@@ -800,7 +827,7 @@ def update_launchers():
     config["Launchers"]["selected"] = ",".join(selected_launchers)
 
     with open(os.path.join(config_dir, "config.ini"), "w") as config_file:
-        config.write(config_file)
+        config.write(config_file)"""
 
 
 # TODO Rename this here and in `update_launchers`
@@ -831,10 +858,9 @@ def _extracted_from_update_launchers_74():
 def selector(
     message: str, item_list: list, valid_chars: str, length: int, multi_input: bool
 ) -> list:
-    print(message)
     if item_list:
         for i in range(len(item_list)):
-            print(f"{i}. {item_list[i]}")
+            print(f"{i + 1}. {item_list[i]}")
 
     while True:
         nums = input(message)
@@ -855,7 +881,7 @@ def selector(
         if valid == False:
             continue
         if nums.count("-") > 1 or ("-" in nums and "," in nums):
-            print("Specify no more than range, or use list")
+            print("Specify no more than one range, or use list")
             continue
         try:
             if multi_input:
@@ -865,20 +891,18 @@ def selector(
                     )
 
                 elif "," in nums:
-                    indices = nums.split(",")
+                    indices = [int(x) - 1 for x in nums.split(",")]
 
                 elif len(nums) == 1:
-                    indices = [int(nums)]
+                    indices = [int(nums) - 1]
 
                 elif nums == "":
-                    indices = list(
-                        range(1, len(item_list) if item_list else length + 1)
-                    )
+                    indices = list(range(len(item_list) if item_list else length))
             elif len(nums) > 1 or not nums.isnumeric():
                 print("Choose 1")
                 continue
             elif nums.isnumeric():
-                indices = [int(nums)]
+                indices = [int(nums) - 1]
 
             return indices
         except Exception as e:
