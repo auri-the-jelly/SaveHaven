@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 from datetime import datetime
 
 import os
@@ -8,8 +6,6 @@ from savehaven.helpers import *
 
 
 def main():
-    sync()
-    """
     parser = argparse.ArgumentParser(
         prog="SaveHaven",
         description="Upload and sync video game files with Google Drive",
@@ -21,7 +17,9 @@ def main():
 
     upload_parser = commands.add_parser("upload", help="Upload path to google drive")
     upload_parser.add_argument("path", type=str, help="Path to upload")
-    upload_parser.add_argument('-n', '--name', type=str, help="Name of the zip to upload", required=False)
+    upload_parser.add_argument(
+        "-n", "--name", type=str, help="Name of the zip to upload", required=False
+    )
 
     cfg_parser = commands.add_parser("updatecfg", help="Update config with launchers")
 
@@ -31,15 +29,16 @@ def main():
         if not args.name:
             file_a = args.path.split("/")[-1]
             file_b = args.path.split("/")[-2]
-            file_name = (file_a if file_a or file_a == "/" else file_b)  + ".zip"
-        else: file_name = args.name
+            file_name = (file_a if file_a or file_a == "/" else file_b) + ".zip"
+        else:
+            file_name = args.name
         upload_file(args.path, file_name, root, os.path.isdir(args.path))
     elif args.command == "sync":
         sync()
     elif args.command == "updatecfg":
         update_launchers()
     else:
-        parser.print_help()"""
+        parser.print_help()
 
 
 if __name__ == "__main__":

@@ -646,7 +646,8 @@ def minecraft_sync(root: str):
     indices = selector(
         "Choose launcher:", mc_launchers, "0123456789-,", len(mc_launchers), False
     )
-    print(mc_launchers[indices[i] - 1])
+    for i in indices:
+        print(mc_launchers[indices[i] - 1])
 
 
 def search_dir(root: str):
