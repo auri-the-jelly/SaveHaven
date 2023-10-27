@@ -7,7 +7,7 @@ import requests
 import configparser
 
 from datetime import datetime
-from appdirs import user_config_dir
+from appdirs import user_config_dir, user_data_dir
 from bs4 import BeautifulSoup
 from shutil import make_archive, unpack_archive
 
@@ -29,7 +29,7 @@ SCOPES = ["https://www.googleapis.com/auth/drive"]
 config_dir = user_config_dir("SaveHaven", "Aurelia")
 if not os.path.exists(config_dir):
     os.mkdir(config_dir)
-config_file = os.path.join(config_dir, "config.json")
+list_file = os.path.join(config_dir, "game_list.json")
 home_path = os.path.expanduser("~")
 games_dir = os.path.join(home_path, "Games")
 heroic_dir = os.path.join(games_dir, "Heroic", "Prefixes")
@@ -331,8 +331,8 @@ def load_config():
         Contents of the configuration file as a dict.
     """
     save_json = {"games": {}}
-    if os.path.exists(config_file):
-        with open(config_file, "r") as sjson:
+    if os.path.exists(list_file):
+        with open(list_file, "r") as sjson:
             try:
                 save_json = json.load(sjson)
             except json.decoder.JSONDecodeError:
@@ -349,7 +349,7 @@ def save_config(save_json):
     save_json : dict
         Configuration settings in dictionary format
     """
-    with open(config_file, "w") as sjson:
+    with open(list_file, "w") as sjson:
         json.dump(save_json, sjson, indent=4)
 
 
@@ -427,7 +427,7 @@ def _extracted_from_pcgw_search_28(search_soup, search_term):
     )[0]
     steam_dir = ".var/app/com.valvesoftware.Steam/.steam/steam"
     common_dir = ".var/app/com.valvesoftware.Steam/.steam/steam/steamapps/common"
-    user_profile = "drive_c/users/auri"
+    user_profile = f"drive_c/users/{os.getlogin()}"
     for plat, tr in save_paths.items():
         for span in tr.find_all("span"):
             for data in span(["style", "script"]):
@@ -498,6 +498,42 @@ def gen_soup(url: str):
     return BeautifulSoup(result.content, "html.parser")
 
 
+def upload_game(folder_name: str, game: SaveDir, upload_time: datetime, root) -> list:
+    # Find files already in Drive
+    drive_folder = create_folder(folder_name, parent=root)
+    files = list_folder(drive_folder)
+    cloud_file = [
+        save_file for save_file in files if save_file["name"] == f"{game.name}.zip"
+    ]
+
+    print(f"Working on {game.name}")
+    # Check if cloud file was modified before or after upload time
+    if cloud_file:
+        date_time_obj = datetime.strptime(
+            cloud_file[0]["modifiedTime"], "%Y-%m-%dT%H:%M:%S.%fZ"
+        ).strftime("%s")
+        if float(upload_time) < float(game.modified):
+            print("Cloud file found, Syncing")
+            delete = delete_file(cloud_file[0]["id"])
+            if not delete:
+                print("Deletion Failed")
+                return [False, None]
+        elif float(date_time_obj) < float(upload_time):
+            print(f"Skipping {game.name}, Google Drive up to date")
+            return [False, None]
+        elif float(date_time_obj) > float(upload_time):
+            consent = input("Cloud file is more recent, sync with cloud? (Y/n)")
+            if consent.lower() == "y":
+                print("Syncing")
+                download(cloud_file[0]["id"])
+                return [False, None]
+            else:
+                print("Sync cancelled")
+    file_id = upload_file(game.path, f"{game.name}.zip", drive_folder, True)
+    print(f"Finished {game.name}")
+    return [True, float(datetime.now().strftime("%s"))]
+
+
 def steam_sync(root: str):
     """ """
     config = configparser.ConfigParser()
@@ -536,8 +572,16 @@ def heroic_sync(root: str):
     # Add prefixes to list
     for files in os.listdir(heroic_dir):
         if os.path.isdir(os.path.join(heroic_dir, files)):
-            save_path = os.path.join(heroic_dir, files)
-            heroic_saves.append(SaveDir(files, save_path, os.path.getmtime(save_path)))
+            prefix_path = os.path.join(heroic_dir, files)
+            # selected_game.path = check_pcgw_location(selected_game.name, "Epic", selected_game.path)
+            save_path = check_pcgw_location(files, "Epic", prefix_path)
+            heroic_saves.append(
+                SaveDir(
+                    files,
+                    check_pcgw_location(files, "Epic", prefix_path),
+                    os.path.getmtime(save_path),
+                )
+            )
 
     # Read config for added games
     print("Found Heroic game saves:")
@@ -560,7 +604,7 @@ def heroic_sync(root: str):
                 "uploaded": 0,
             }
         print(f"{i+1}. {heroic_saves[i].name}")
-    if not os.path.exists(config_file) or not save_json["games"].keys():
+    if not os.path.exists(list_file) or not save_json["games"].keys():
         save_config(save_dict)
     else:
         save_config(save_json)
@@ -571,9 +615,8 @@ def heroic_sync(root: str):
     indices = selector(
         "Enter range (3-5) or indexes (1,3,5), q to quit and empty for all: ",
         None,
-        "1234567890-,",
-        len(heroic_saves),
         True,
+        length=len(heroic_saves),
     )
     if indices[0] == "skip":
         return
@@ -582,6 +625,15 @@ def heroic_sync(root: str):
         print(heroic_saves[indices[i]])
 
     selected_games = [heroic_saves[index] for index in indices]
+
+    for game in selected_games:
+        upload_status = upload_game(
+            "Heroic", game, save_json["games"][game.name]["uploaded"], root
+        )
+        if upload_status[0] == True:
+            save_json["games"][game.name]["uploaded"] = upload_status[1]
+    with open(list_file, "w") as saves_file:
+        json.dump(save_json, saves_file, indent=4)
 
     for selected_game in selected_games:
         # Find files already in Drive
@@ -599,9 +651,6 @@ def heroic_sync(root: str):
             date_time_obj = datetime.strptime(
                 cloud_file[0]["modifiedTime"], "%Y-%m-%dT%H:%M:%S.%fZ"
             ).strftime("%s")
-            print(
-                f"{float(date_time_obj)} {float(selected_game.modified)} {save_json['games'][selected_game.name]['uploaded']}"
-            )
             if float(save_json["games"][selected_game.name]["uploaded"]) < float(
                 selected_game.modified
             ):
@@ -625,9 +674,6 @@ def heroic_sync(root: str):
                     continue
                 else:
                     print("Sync cancelled")
-        selected_game.path = check_pcgw_location(
-            selected_game.name, "Epic", selected_game.path
-        )
         file_id = upload_file(
             selected_game.path, f"{selected_game.name}.zip", heroic_folder, True
         )
@@ -636,17 +682,116 @@ def heroic_sync(root: str):
             datetime.now().strftime("%s")
         )
         print(f"Finished {selected_game.name}")
-    with open(os.path.join(config_dir, "config.json"), "w") as saves_file:
-        json.dump(save_json, saves_file)
 
 
 def minecraft_sync(root: str):
-    mc_launchers = ["Official Launcher", "Prism Launcher", "MultiMC"]
+    print("Minceraft")
+    config = configparser.ConfigParser()
+    config.read(os.path.join(config_dir, "config.ini"))
+    save_json = load_config()
+    save_json["minecraft"] = {}
+    worlds = {
+        launcher: get_worlds(launcher)
+        for launcher in config["Minecraft"]["selected"].split(",")
+    }
+    for god_help_me in worlds.values():
+        for world in god_help_me:
+            print(world.name)
+    """
     indices = selector(
-        "Choose launcher:", mc_launchers, "1234567890-,", len(mc_launchers), False
+        "Select worlds to backup:",
+        worlds,
+        True,
     )
-    for i in indices:
-        print(mc_launchers[indices[i]])
+    selected_worlds = [
+        SaveDir(
+            x,
+            os.path.join(saves_dir, x),
+            os.path.getmtime(os.path.join(saves_dir, x)),
+        )
+        for x in worlds
+        if worlds.index(x) in indices
+    ]
+    print(selected_worlds)
+    for world in selected_worlds:
+        save_json["minecraft"][world.name] = {"path": world.path, "uploaded": 0}
+        upload_status = upload_game(
+            "Minecraft",
+            world,
+            save_json["minecraft"][world.name]["uploaded"],
+            root,
+        )
+        if upload_status[0] == True:
+            save_json["minecraft"][world.name]["uploaded"] = upload_status[1]"""
+
+
+# TODO Rename this here and in `minecraft_sync`
+def get_worlds(launcher):
+    locations = {
+        "Official": os.path.join(os.path.expanduser("~"), ".minecraft"),
+        "Prism Launcher": os.path.join(
+            os.path.expanduser("~"),
+            ".local",
+            "share",
+            "PrismLauncher",
+            "instances",
+        ),
+        "MultiMC": os.path.join(
+            os.path.expanduser("~"),
+            ".local",
+            "share",
+            "MultiMC",
+            "instances",
+        ),
+    }
+    worlds = []
+    if launcher in ["Prism Launcher", "MultiMC"]:
+        instances = [
+            x
+            for x in os.listdir(locations[launcher])
+            if x not in [".LAUNCHER_TEMP", "instgroups.json"]
+            and os.path.isdir(locations[launcher])
+        ]
+        indices = selector("Choose instances to backup:", instances, True)
+        selected_instances = [x for x in instances if instances.index(x) in indices]
+        for instance in selected_instances:
+            saves_dir = os.path.join(
+                locations[launcher],
+                instance,
+                ".minecraft" if launcher == "Prism Launcher" else "minecraft",
+                "saves",
+            )
+            instance_worlds = os.listdir(saves_dir)
+            indices = selector(f"Choose worlds from {instance}:", instance_worlds, True)
+            selected_worlds = [
+                x for x in instance_worlds if instance_worlds.index(x) in indices
+            ]
+            worlds = [
+                SaveDir(
+                    world,
+                    os.path.join(saves_dir, world),
+                    os.path.getmtime(os.path.join(saves_dir, world)),
+                )
+                for world in selected_worlds
+            ]
+            """worlds[instance] = os.listdir(
+                os.path.join(
+                    locations[launcher],
+                    instance,
+                    ".minecraft" if launcher == "Prism Launcher" else "minecraft",
+                    "saves",
+                )
+            )"""
+    else:
+        worlds = [
+            SaveDir(
+                x,
+                os.path.join(os.path.join(locations[launcher], "saves", x)),
+                os.path.getmtime(os.path.join(locations[launcher], "saves", x)),
+            )
+            for x in os.listdir(os.path.join(locations[launcher], "saves"))
+        ]
+    return worlds
 
 
 def search_dir(root: str):
@@ -662,7 +807,6 @@ def search_dir(root: str):
     # Gets selected launchers
     config = configparser.ConfigParser()
     config.read(os.path.join(config_dir, "config.ini"))
-    print(config["Launchers"]["selected"])
     launchers = config["Launchers"]["selected"].split(",")
     home_path = os.path.expanduser("~")
 
@@ -687,7 +831,6 @@ def sync():
 
     # If SaveHaven folder doesn't exist, create it.
     folder = create_folder(filename="SaveHaven")
-    print(f"Created {folder}")
 
     # Search for save file directories
     search_dir(folder)
@@ -734,12 +877,9 @@ def update_launchers():
     """
     launchers = ["Steam", "Heroic", "Legendary", "GOG Galaxy", "Minecraft"]
     mc_launchers = ["Official", "MultiMC", "Prism Launcher"]
-    steam_package_managers = ["Distro", "Flatpak", "Snap"]
     indices = selector(
         "Enter range (3-5) or indexes (1,3,5), q to quit and empty for all:",
         launchers,
-        "1234567890-,",
-        len(launchers),
         True,
     )
     print("Selecting these launchers:")
@@ -758,12 +898,11 @@ def update_launchers():
         if "y" not in steam_agree.lower():
             selected_launchers.pop(selected_launchers.index("Steam"))
         else:
+            steam_package_managers = ["Distro", "Flatpak", "Snap"]
             selected_package_manager = steam_package_managers[
                 selector(
                     "Enter index:",
                     steam_package_managers,
-                    "1234567890-,",
-                    len(steam_package_managers),
                     False,
                 )[0]
             ]
@@ -773,18 +912,15 @@ def update_launchers():
         selected_mc_launchers = selector(
             "Enter range (1-3) or indexes (1,3), q to quit and empty for all:",
             mc_launchers,
-            "1234567890-,",
-            len(mc_launchers),
             True,
         )
-        print(config.sections())
         config["Minecraft"]["selected"] = ",".join(
-            [x for x in mc_launchers if mc_launchers.index(x) in indices]
+            [x for x in mc_launchers if mc_launchers.index(x) in selected_mc_launchers]
         )
     config["Launchers"]["selected"] = ",".join(selected_launchers)
 
-    with open(os.path.join(config_dir, "config.ini"), "w") as config_file:
-        config.write(config_file)
+    with open(os.path.join(config_dir, "config.ini"), "w") as list_file:
+        config.write(list_file)
     """
     for i in range(len(launchers)):
         print(f"{i + 1}. {launchers[i]}")
@@ -881,12 +1017,15 @@ def _extracted_from_update_launchers_74():
 
 
 def selector(
-    message: str, item_list: list, valid_chars: str, length: int, multi_input: bool
+    message: str,
+    item_list: list,
+    multi_input: bool,
+    length: int = 0,
 ) -> list:
     if item_list:
         for i in range(len(item_list)):
             print(f"{i + 1}. {item_list[i]}")
-
+    valid_chars = "1234567890-,"
     while True:
         nums = input(message)
         valid = True
@@ -908,30 +1047,27 @@ def selector(
         if nums.count("-") > 1 or ("-" in nums and "," in nums):
             print("Specify no more than one range, or use list")
             continue
-        try:
-            if multi_input:
-                if "-" in nums:
-                    indices = list(
-                        range(int(nums.split("-")[0]), int(nums.split("-")[1]) + 1)
-                    )
+        if multi_input:
+            if "-" in nums:
+                indices = list(
+                    range(int(nums.split("-")[0]) - 1, int(nums.split("-")[1]))
+                )
 
-                elif "," in nums:
-                    indices = [int(x) - 1 for x in nums.split(",")]
+            elif "," in nums:
+                indices = [int(x) - 1 for x in nums.split(",")]
 
-                elif len(nums) == 1:
-                    indices = [int(nums) - 1]
-
-                elif nums == "":
-                    indices = list(range(len(item_list) if item_list else length))
-            elif len(nums) > 1 or not nums.isnumeric():
-                print("Choose 1")
-                continue
-            elif nums.isnumeric():
+            elif len(nums) == 1:
                 indices = [int(nums) - 1]
 
-            return indices
-        except Exception as e:
-            print("Error occured: ", e)
+            elif nums == "":
+                indices = list(range(len(item_list) if item_list else length))
+        elif len(nums) > 1 or not nums.isnumeric():
+            print("Choose 1")
+            continue
+        elif nums.isnumeric():
+            indices = [int(nums) - 1]
+
+        return indices
 
 
 # endregion
