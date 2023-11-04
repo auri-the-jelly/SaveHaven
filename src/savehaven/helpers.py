@@ -24,7 +24,7 @@ from savehaven.configs import creds
 
 # endregion
 
-# region Variables
+# region Global Variables
 SCOPES = ["https://www.googleapis.com/auth/drive"]
 config_dir = user_config_dir("SaveHaven", "Aurelia")
 if not os.path.exists(config_dir):
@@ -291,6 +291,25 @@ def upload_file(path: str, name: str, parent: str = None, folder: bool = False) 
     return file_id
 
 
+def download(file_id: str):
+    try:
+        # create drive api client
+        service = build("drive", "v3", credentials=creds)
+
+        # pylint: disable=maybe-no-member
+        request = service.files().get_media(fileId=file_id)
+        file = io.BytesIO()
+        downloader = MediaIoBaseDownload(file, request)
+        done = False
+        while not done:
+            status, done = downloader.next_chunk()
+            print(f"Download {int(status.progress() * 100)}.")
+
+    except HttpError as error:
+        print(f"An error occurred: {error}")
+        file = None
+
+
 def delete_file(file_id):
     """
     Permanently delete a file, skipping the trash.
@@ -321,7 +340,7 @@ def delete_file(file_id):
 # region SaveSync functions
 
 
-def load_config():
+def load_config() -> dict:
     """
     Returns the contents of the configuration file in json format
 
@@ -340,7 +359,7 @@ def load_config():
     return save_json
 
 
-def save_config(save_json):
+def save_config(save_json: dict):
     """
     Saves a dictionary of configuration settings to the config file
 
@@ -349,6 +368,7 @@ def save_config(save_json):
     save_json : dict
         Configuration settings in dictionary format
     """
+
     with open(list_file, "w") as sjson:
         json.dump(save_json, sjson, indent=4)
 
@@ -360,11 +380,11 @@ def pcgw_search(search_term: str, steam_id: bool = False) -> list:
     search_term : str
         PCGamingWiki search term
     steam_id : bool
-        Whether the search term is a Steam ID
+        Whether the search term is a Steam ID. Deafaults to False
 
     Returns
     -------
-    _extracted_from_pcgw_search_28 : list
+    save_paths : list
         List of save locations by platform (Steam, Windows, Epic Games, etc.)
     """
     # Cases:
@@ -391,13 +411,27 @@ def pcgw_search(search_term: str, steam_id: bool = False) -> list:
             "html.parser",
         )
     try:
-        return _extracted_from_pcgw_search_28(search_soup, search_term)
+        return extract_save_locations(search_soup, search_term)
     except IndexError:
         print(search_url + search_term)
 
 
 # TODO Rename this here and in `pcgw_search`
-def _extracted_from_pcgw_search_28(search_soup, search_term):
+def extract_save_locations(search_soup: BeautifulSoup, search_term: str) -> list:
+    """
+    Parameters
+    ----------
+    search_soup: BeatifulSoup
+        BeautifulSoup object from URL
+
+    search_term: str
+        Game search term
+
+    Returns
+    -------
+    save_paths: list
+        List of save paths
+    """
     gamedata_table = search_soup.find_all(id="table-gamedata")[1]
     platform_list = [
         "Windows",
@@ -452,7 +486,22 @@ def _extracted_from_pcgw_search_28(search_soup, search_term):
     return save_paths
 
 
-def check_pcgw_location(game_title: str, platform: str, prefix_path: str):
+def check_pcgw_location(game_title: str, platform: str, prefix_path: str) -> str:
+    """
+    Parameters
+    ----------
+    game_title : str
+        Game title
+    platform: str
+        Epic or Steam store
+    prefix_path: str
+        Path to game's wineprefix
+
+    Returns
+    -------
+    prefix_path : str
+        Valid save path
+    """
     if platform == "Epic":
         pcgw = pcgw_search(game_title)
         locations = [
@@ -480,7 +529,7 @@ def check_pcgw_location(game_title: str, platform: str, prefix_path: str):
         return prefix_path
 
 
-def gen_soup(url: str):
+def gen_soup(url: str) -> BeautifulSoup:
     """
     Generates a BeautifulSoup for a given URL
 
@@ -498,7 +547,29 @@ def gen_soup(url: str):
     return BeautifulSoup(result.content, "html.parser")
 
 
-def upload_game(folder_name: str, game: SaveDir, upload_time: datetime, root) -> list:
+def upload_game(
+    folder_name: str, game: SaveDir, upload_time: datetime, root: str
+) -> list:
+    """
+    Parameters
+    ----------
+    folder_name : str
+        Name of the folder to upload to
+
+    game: SaveDir
+        SaveDir object for game
+
+    upload_time : datetime
+        datetime object of the upload
+
+    root: str
+    ID of Google Drive Folder
+
+    Returns
+    -------
+    status: list
+        List containing bool of upload success and if so, upload time.
+    """
     # Find files already in Drive
     drive_folder = create_folder(folder_name, parent=root)
     files = list_folder(drive_folder)
@@ -535,7 +606,9 @@ def upload_game(folder_name: str, game: SaveDir, upload_time: datetime, root) ->
 
 
 def steam_sync(root: str):
-    """ """
+    """
+    stub
+    """
     config = configparser.ConfigParser()
     config.read(os.path.join(config_dir, "config.ini"))
     steam_dir = ""
@@ -563,8 +636,6 @@ def heroic_sync(root: str):
 
     Parameters
     ----------
-    save_dirs: list
-        List of SaveDir objects of games in Heroic directories
 
     root: str
         ID of SaveHaven folder in Google Drive
@@ -685,6 +756,15 @@ def heroic_sync(root: str):
 
 
 def minecraft_sync(root: str):
+    """
+    Sync Minecraft files
+
+    Parameters
+    ----------
+
+    root: str
+        ID of SaveHaven folder in Google Drive
+    """
     print("Minceraft")
     config = configparser.ConfigParser()
     config.read(os.path.join(config_dir, "config.ini"))
@@ -726,7 +806,18 @@ def minecraft_sync(root: str):
 
 
 # TODO Rename this here and in `minecraft_sync`
-def get_worlds(launcher):
+def get_worlds(launcher: str):
+    """
+    Parameters
+    ----------
+    launcher : str
+        Minecraft Launcher (MultiMC, PrismLauncher, Official)
+
+    Returns
+    -------
+    worlds : list
+        list of SaveDir objects of Minecraft worlds
+    """
     locations = {
         "Official": os.path.join(os.path.expanduser("~"), ".minecraft"),
         "Prism Launcher": os.path.join(
@@ -834,25 +925,6 @@ def sync():
 
     # Search for save file directories
     search_dir(folder)
-
-
-def download(file_id: str):
-    try:
-        # create drive api client
-        service = build("drive", "v3", credentials=creds)
-
-        # pylint: disable=maybe-no-member
-        request = service.files().get_media(fileId=file_id)
-        file = io.BytesIO()
-        downloader = MediaIoBaseDownload(file, request)
-        done = False
-        while not done:
-            status, done = downloader.next_chunk()
-            print(f"Download {int(status.progress() * 100)}.")
-
-    except HttpError as error:
-        print(f"An error occurred: {error}")
-        file = None
 
 
 def get_save_location(name: str) -> str:
@@ -992,7 +1064,7 @@ def update_launchers():
 
 
 # TODO Rename this here and in `update_launchers`
-def _extracted_from_update_launchers_74():
+"""def _extracted_from_update_launchers_74():
     print("Select steam install type:")
     package_managers = ["Distro", "Flatpak", "Snap (needs testing)"]
     for i in range(3):
@@ -1013,7 +1085,7 @@ def _extracted_from_update_launchers_74():
     with open(os.path.join(config_dir, "config.ini"), "w") as config_file:
         result.write(config_file)
 
-    return result
+    return result"""
 
 
 def selector(
