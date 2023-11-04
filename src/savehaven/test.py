@@ -1,3 +1,4 @@
 from helpers import *
+import configparser
 
-update_launchers()
+minecraft_sync("help")
