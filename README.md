@@ -6,14 +6,13 @@ A CLI tool to backup video game save files, launcher agnostically
     cd SaveHaven
     pip install -e .
 
-Currently only supports Linux and Heroic launcher games.
+Currently only supports Linux and Heroic launcher games and Minecraft.
 
 ## Working On
 
 #### Currently
 --------------
-
-Minecraft
+Nothing.
 
 #### Planned
 ------------
@@ -26,15 +25,13 @@ Emulator support
 
 Nextcloud
 
-Steam support
-
 Multiple save files
 
-#### Barely functional
+#### Functional
 ----------------------
 Heroic support
 
-SQLite3 db to document syncs
+Minecraft
 
 Argparse
 
@@ -43,6 +40,8 @@ Custom directory support
 #### Scrapped
 
 Wine EGS - - Games are stored in different places for each game and games may not always use the prefix, and PCGamingWiki is not reliable enough for Linux games
+
+Steam support
 
 ## For those poor souls who stumbled upon this project and want to contribute for god knows why
 
