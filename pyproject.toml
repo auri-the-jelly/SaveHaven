@@ -1,10 +1,11 @@
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "savehaven"
 version = "0.1.0"
+dependencies = ["argparse", "requests", "configparser", "datetime", "appdirs", "bs4", "google","google-api-python-client","google-auth-httplib2", "google-auth-oauthlib"]
 authors = [
   { name="Aurelia Aurita", email="aurliaanoop@proton.me" },
 ]
@@ -20,3 +21,6 @@ classifiers = [
 [project.urls]
 "Homepage" = "https://github.com/RNKnight1/SaveHaven"
 "Bug Tracker" = "https://github.com/RNKnight1/SaveHaven/issues"
+
+[project.scripts]
+savehaven = "savehaven.__main__:main"
