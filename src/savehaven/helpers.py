@@ -5,11 +5,13 @@ import json
 import sqlite3
 import requests
 import configparser
+import inquirer
 
 from datetime import datetime
 from appdirs import user_config_dir, user_data_dir
 from bs4 import BeautifulSoup
 from shutil import make_archive, unpack_archive
+from inquirer.themes import GreenPassion
 
 import google.auth
 from googleapiclient.discovery import build
@@ -674,7 +676,6 @@ def heroic_sync(root: str):
                 "path": heroic_saves[i].path,
                 "uploaded": 0,
             }
-        print(f"{i+1}. {heroic_saves[i].name}")
     if not os.path.exists(list_file) or not save_json["games"].keys():
         save_config(save_dict)
     else:
@@ -682,20 +683,22 @@ def heroic_sync(root: str):
 
     save_json = load_config()
 
-    # Selecting games to sync
-    indices = selector(
-        "Enter range (3-5) or indexes (1,3,5), q to quit and empty for all: ",
-        None,
-        True,
-        length=len(heroic_saves),
-    )
-    if indices[0] == "skip":
-        return
-    print("Backing up these games: ")
-    for i in range(len(indices)):
-        print(heroic_saves[indices[i]])
+    questions = [
+        inquirer.Checkbox(
+            "selected_games",
+            message="Select games to backup",
+            choices=[i.name for i in heroic_saves],
+        )
+    ]
 
-    selected_games = [heroic_saves[index] for index in indices]
+    answers = inquirer.prompt(questions, theme=GreenPassion())
+
+    print("Backing up these games: ")
+
+    selected_games = []
+    for i in answers["selected_games"]:
+        print(f"    {i}")
+        selected_games.extend(j for j in heroic_saves if j.name == i)
 
     for game in selected_games:
         upload_status = upload_game(
@@ -705,54 +708,6 @@ def heroic_sync(root: str):
             save_json["games"][game.name]["uploaded"] = upload_status[1]
     with open(list_file, "w") as saves_file:
         json.dump(save_json, saves_file, indent=4)
-
-    for selected_game in selected_games:
-        # Find files already in Drive
-        heroic_folder = create_folder("Heroic", parent=root)
-        files = list_folder(heroic_folder)
-        cloud_file = [
-            save_file
-            for save_file in files
-            if save_file["name"] == f"{selected_game.name}.zip"
-        ]
-
-        print(f"Working on {selected_game.name}")
-        # Check if cloud file was modified before or after upload time
-        if cloud_file:
-            date_time_obj = datetime.strptime(
-                cloud_file[0]["modifiedTime"], "%Y-%m-%dT%H:%M:%S.%fZ"
-            ).strftime("%s")
-            if float(save_json["games"][selected_game.name]["uploaded"]) < float(
-                selected_game.modified
-            ):
-                print("Cloud file found, Syncing")
-                delete = delete_file(cloud_file[0]["id"])
-                if not delete:
-                    print("Deletion Failed")
-                    continue
-            elif float(date_time_obj) < float(
-                save_json["games"][selected_game.name]["uploaded"]
-            ):
-                print(f"Skipping {selected_game.name}, Google Drive up to date")
-                continue
-            elif float(date_time_obj) > float(
-                save_json["games"][selected_game.name]["uploaded"]
-            ):
-                consent = input("Cloud file is more recent, sync with cloud? (Y/n)")
-                if consent.lower() == "y":
-                    print("Syncing")
-                    download(cloud_file[0]["id"])
-                    continue
-                else:
-                    print("Sync cancelled")
-        file_id = upload_file(
-            selected_game.path, f"{selected_game.name}.zip", heroic_folder, True
-        )
-
-        save_json["games"][selected_game.name]["uploaded"] = float(
-            datetime.now().strftime("%s")
-        )
-        print(f"Finished {selected_game.name}")
 
 
 def minecraft_sync(root: str):
@@ -774,35 +729,25 @@ def minecraft_sync(root: str):
         launcher: get_worlds(launcher)
         for launcher in config["Minecraft"]["selected"].split(",")
     }
-    for god_help_me in worlds.values():
-        for world in god_help_me:
+    for launcher, launcher_worlds in worlds.items():
+        save_json["minecraft"][launcher] = {}
+        for world in launcher_worlds:
             print(world.name)
-    """
-    indices = selector(
-        "Select worlds to backup:",
-        worlds,
-        True,
-    )
-    selected_worlds = [
-        SaveDir(
-            x,
-            os.path.join(saves_dir, x),
-            os.path.getmtime(os.path.join(saves_dir, x)),
-        )
-        for x in worlds
-        if worlds.index(x) in indices
-    ]
-    print(selected_worlds)
-    for world in selected_worlds:
-        save_json["minecraft"][world.name] = {"path": world.path, "uploaded": 0}
-        upload_status = upload_game(
-            "Minecraft",
-            world,
-            save_json["minecraft"][world.name]["uploaded"],
-            root,
-        )
-        if upload_status[0] == True:
-            save_json["minecraft"][world.name]["uploaded"] = upload_status[1]"""
+            save_json["minecraft"][launcher][world.name] = {
+                "path": world.path,
+                "uploaded": 0,
+            }
+            upload_status = upload_game(
+                "Minecraft",
+                world,
+                save_json["minecraft"][launcher][world.name]["uploaded"],
+                root,
+            )
+            if upload_status[0] == True:
+                save_json["minecraft"][launcher][world.name][
+                    "uploaded"
+                ] = upload_status[1]
+    save_config(save_json)
 
 
 # TODO Rename this here and in `minecraft_sync`
@@ -836,16 +781,22 @@ def get_worlds(launcher: str):
         ),
     }
     worlds = []
-    if launcher in ["Prism Launcher", "MultiMC"]:
+    if launcher in {"Prism Launcher", "MultiMC"}:
         instances = [
             x
             for x in os.listdir(locations[launcher])
             if x not in [".LAUNCHER_TEMP", "instgroups.json"]
             and os.path.isdir(locations[launcher])
         ]
-        indices = selector("Choose instances to backup:", instances, True)
-        selected_instances = [x for x in instances if instances.index(x) in indices]
-        for instance in selected_instances:
+        questions = [
+            inquirer.Checkbox(
+                "selected_instances",
+                message=f"Select instances from {launcher}",
+                choices=instances,
+            )
+        ]
+        answers = inquirer.prompt(questions)
+        for instance in answers["selected_instances"]:
             saves_dir = os.path.join(
                 locations[launcher],
                 instance,
@@ -853,34 +804,39 @@ def get_worlds(launcher: str):
                 "saves",
             )
             instance_worlds = os.listdir(saves_dir)
-            indices = selector(f"Choose worlds from {instance}:", instance_worlds, True)
-            selected_worlds = [
-                x for x in instance_worlds if instance_worlds.index(x) in indices
+            questions = [
+                inquirer.Checkbox(
+                    "selected_worlds",
+                    message=f"Select worlds from {instance}",
+                    choices=instance_worlds,
+                )
             ]
+            answers = inquirer.prompt(questions)
             worlds = [
                 SaveDir(
                     world,
                     os.path.join(saves_dir, world),
                     os.path.getmtime(os.path.join(saves_dir, world)),
                 )
-                for world in selected_worlds
+                for world in answers["selected_worlds"]
             ]
-            """worlds[instance] = os.listdir(
-                os.path.join(
-                    locations[launcher],
-                    instance,
-                    ".minecraft" if launcher == "Prism Launcher" else "minecraft",
-                    "saves",
-                )
-            )"""
     else:
+        instance_worlds = os.listdir(os.path.join(locations[launcher], "saves"))
+        questions = [
+            inquirer.Checkbox(
+                "selected_worlds",
+                message="Select worlds",
+                choices=instance_worlds,
+            )
+        ]
+        answers = inquirer.prompt(questions)
         worlds = [
             SaveDir(
                 x,
                 os.path.join(os.path.join(locations[launcher], "saves", x)),
                 os.path.getmtime(os.path.join(locations[launcher], "saves", x)),
             )
-            for x in os.listdir(os.path.join(locations[launcher], "saves"))
+            for x in answers["selected_worlds"]
         ]
     return worlds
 
@@ -947,199 +903,40 @@ def update_launchers():
         List of launchers
 
     """
-    launchers = ["Steam", "Heroic", "Legendary", "GOG Galaxy", "Minecraft"]
-    mc_launchers = ["Official", "MultiMC", "Prism Launcher"]
-    indices = selector(
-        "Enter range (3-5) or indexes (1,3,5), q to quit and empty for all:",
-        launchers,
-        True,
-    )
-    print("Selecting these launchers:")
-    for i in indices:
-        print(launchers[i])
-    selected_launchers = [
-        launcher for launcher in launchers if launchers.index(launcher) in indices
+    questions = [
+        inquirer.Checkbox(
+            "launchers",
+            message="Select launchers (space to select, enter to confirm)",
+            choices=["Steam", "Heroic", "Legendary", "GOG Galaxy", "Minecraft"],
+        ),
+        inquirer.Confirm(
+            "steam",
+            message="Steam has its own cloud sync, are you sure?",
+            ignore=lambda x: "Steam" not in x["launchers"],
+        ),
+        inquirer.List(
+            "steam_package_manager",
+            message="Steam has its own cloud sync, are you sure?",
+            choices=["Distro (apt, pacman, dnf)", "Flatpak", "Snap"],
+            ignore=lambda x: "Steam" not in x["launchers"] or not x["steam"],
+        ),
+        inquirer.Checkbox(
+            "mclaunchers",
+            message="Select Minecraft launchers (space to select, enter to confirm)",
+            choices=["Official", "Prism Launcher", "MultiMC"],
+            ignore=lambda x: "Minecraft" not in x["launchers"],
+        ),
     ]
+
+    answers = inquirer.prompt(questions, theme=GreenPassion())
     config = configparser.ConfigParser()
-    config["Launchers"] = config["Minecraft"] = config["Steam"] = {"selected": ""}
-
-    if "Steam" in selected_launchers:
-        steam_agree = input(
-            "Steam has it's own save sync, are you sure you want to backup with SaveHaven? (y/n): "
-        )
-        if "y" not in steam_agree.lower():
-            selected_launchers.pop(selected_launchers.index("Steam"))
-        else:
-            steam_package_managers = ["Distro", "Flatpak", "Snap"]
-            selected_package_manager = steam_package_managers[
-                selector(
-                    "Enter index:",
-                    steam_package_managers,
-                    False,
-                )[0]
-            ]
-            config["Steam"]["Package_Manager"] = selected_package_manager
-            # config = _extracted_from_update_launchers_74()
-    if "Minecraft" in selected_launchers:
-        selected_mc_launchers = selector(
-            "Enter range (1-3) or indexes (1,3), q to quit and empty for all:",
-            mc_launchers,
-            True,
-        )
-        config["Minecraft"]["selected"] = ",".join(
-            [x for x in mc_launchers if mc_launchers.index(x) in selected_mc_launchers]
-        )
-    config["Launchers"]["selected"] = ",".join(selected_launchers)
-
+    config["Launchers"] = {"selected": ",".join(answers["launchers"])}
+    if answers["steam"] and answers["steam_package_manager"]:
+        config["Steam"] = {"selected": answers["steam_package_manager"]}
+    if answers["mclaunchers"]:
+        config["Minecraft"] = {"selected": ",".join(answers["mclaunchers"])}
     with open(os.path.join(config_dir, "config.ini"), "w") as list_file:
         config.write(list_file)
-    """
-    for i in range(len(launchers)):
-        print(f"{i + 1}. {launchers[i]}")
-
-    valid_chars = "1234567890-,"
-    while True:
-        launcher_nums = input(
-            "Enter range (3-5) or indexes (1,3,5), q to quit and empty for all: "
-        )
-        valid = True
-        if "q" in launcher_nums:
-            quit()
-        for i in launcher_nums:
-            if i not in valid_chars:
-                print("Invalid characters")
-                valid = False
-                break
-            if i.isnumeric() and int(i) > len(launchers):
-                print("Index out of range")
-                valid = False
-                break
-        if valid == False:
-            continue
-        if launcher_nums.count("-") > 1 or (
-            "-" in launcher_nums and "," in launcher_nums
-        ):
-            print("Specify no more than range, or use list")
-            continue
-        try:
-            if "-" in launcher_nums:
-                indices = list(
-                    range(
-                        int(launcher_nums.split("-")[0]),
-                        int(launcher_nums.split("-")[1]) + 1,
-                    )
-                )
-
-            elif "," in launcher_nums:
-                indices = launcher_nums.split(",")
-
-            elif len(launcher_nums) == 1:
-                indices = [int(launcher_nums)]
-
-            elif launcher_nums == "":
-                indices = list(range(1, len(launchers) + 1))
-
-            print("Selecting these launchers: ")
-            for i in range(len(indices)):
-                indices[i] = int(indices[i]) - 1
-            selected_launchers = [x for x in launchers if launchers.index(x) in indices]
-            print(selected_launchers)
-            break
-        except Exception as e:
-            print("Error occured: ", e)
-    config = configparser.ConfigParser()
-    config["Launchers"] = {"selected": ""}
-    if "Steam" in selected_launchers:
-        steam_agree = input(
-            "Steam has it's own save sync, are you sure you want to backup with SaveHaven? (y/n): "
-        )
-        if "y" not in steam_agree:
-            selected_launchers.pop(selected_launchers.index("Steam"))
-        else:
-            config = _extracted_from_update_launchers_74()
-    config["Launchers"]["selected"] = ",".join(selected_launchers)
-
-    with open(os.path.join(config_dir, "config.ini"), "w") as config_file:
-        config.write(config_file)"""
-
-
-# TODO Rename this here and in `update_launchers`
-"""def _extracted_from_update_launchers_74():
-    print("Select steam install type:")
-    package_managers = ["Distro", "Flatpak", "Snap (needs testing)"]
-    for i in range(3):
-        print(f"{i + 1}. {package_managers[i]}")
-    selected = input("Enter index: ")
-    if selected.isnumeric() and int(selected) > 0 and int(selected) < 4:
-        selected = int(selected)
-        print(f"Selecting: {package_managers[selected - 1]}")
-    else:
-        print("Invalid input try again")
-        quit()
-
-    result = configparser.ConfigParser()
-    result.read(os.path.join(config_dir, "config.ini"))
-    print(result.sections())
-    result["Steam"] = {"Package_Manager": package_managers[selected - 1]}
-    print(result.sections())
-    with open(os.path.join(config_dir, "config.ini"), "w") as config_file:
-        result.write(config_file)
-
-    return result"""
-
-
-def selector(
-    message: str,
-    item_list: list,
-    multi_input: bool,
-    length: int = 0,
-) -> list:
-    if item_list:
-        for i in range(len(item_list)):
-            print(f"{i + 1}. {item_list[i]}")
-    valid_chars = "1234567890-,"
-    while True:
-        nums = input(message)
-        valid = True
-        if "q" in nums:
-            quit()
-        elif "s" in nums:
-            return ["skip"]
-        for i in nums:
-            if i not in valid_chars:
-                print("Invalid characters")
-                valid = False
-                break
-            if i.isnumeric() and int(i) > (len(item_list) if item_list else length):
-                print("Index out of range")
-                valid = False
-                break
-        if valid == False:
-            continue
-        if nums.count("-") > 1 or ("-" in nums and "," in nums):
-            print("Specify no more than one range, or use list")
-            continue
-        if multi_input:
-            if "-" in nums:
-                indices = list(
-                    range(int(nums.split("-")[0]) - 1, int(nums.split("-")[1]))
-                )
-
-            elif "," in nums:
-                indices = [int(x) - 1 for x in nums.split(",")]
-
-            elif len(nums) == 1:
-                indices = [int(nums) - 1]
-
-            elif nums == "":
-                indices = list(range(len(item_list) if item_list else length))
-        elif len(nums) > 1 or not nums.isnumeric():
-            print("Choose 1")
-            continue
-        elif nums.isnumeric():
-            indices = [int(nums) - 1]
-
-        return indices
 
 
 # endregion
