@@ -795,7 +795,7 @@ def get_worlds(launcher: str):
                 choices=instances,
             )
         ]
-        answers = inquirer.prompt(questions)
+        answers = inquirer.prompt(questions, theme=GreenPassion())
         for instance in answers["selected_instances"]:
             saves_dir = os.path.join(
                 locations[launcher],
@@ -811,7 +811,7 @@ def get_worlds(launcher: str):
                     choices=instance_worlds,
                 )
             ]
-            answers = inquirer.prompt(questions)
+            answers = inquirer.prompt(questions, theme=GreenPassion())
             worlds = [
                 SaveDir(
                     world,
@@ -829,7 +829,7 @@ def get_worlds(launcher: str):
                 choices=instance_worlds,
             )
         ]
-        answers = inquirer.prompt(questions)
+        answers = inquirer.prompt(questions, theme=GreenPassion())
         worlds = [
             SaveDir(
                 x,
