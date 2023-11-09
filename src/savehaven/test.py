@@ -1,4 +1,3 @@
-from helpers import *
-import configparser
+from savehaven.helpers import sync
 
-minecraft_sync("help")
+sync()
