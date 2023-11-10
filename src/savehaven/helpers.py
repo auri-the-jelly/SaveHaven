@@ -12,6 +12,7 @@ from appdirs import user_config_dir, user_data_dir
 from bs4 import BeautifulSoup
 from shutil import make_archive, unpack_archive
 from inquirer.themes import GreenPassion
+from tqdm import tqdm
 
 import google.auth
 from googleapiclient.discovery import build
@@ -339,7 +340,7 @@ def delete_file(file_id):
 
 # endregion
 
-# region SaveSync functions
+# region SaveSync functions·
 
 
 def load_config() -> dict:
@@ -643,7 +644,15 @@ def heroic_sync(root: str):
         ID of SaveHaven folder in Google Drive
     """
     # Add prefixes to list
-    for files in os.listdir(heroic_dir):
+    print("Processing files and making API calls...")
+    for files in tqdm(
+        os.listdir(heroic_dir),
+        bar_format="{l_bar}{bar}|",
+        desc="Progress",
+        leave=False,
+        ncols=50,
+        unit="file",
+    ):
         if os.path.isdir(os.path.join(heroic_dir, files)):
             prefix_path = os.path.join(heroic_dir, files)
             # selected_game.path = check_pcgw_location(selected_game.name, "Epic", selected_game.path)
@@ -657,7 +666,6 @@ def heroic_sync(root: str):
             )
 
     # Read config for added games
-    print("Found Heroic game saves:")
     save_json = load_config()
     save_dict = {"games": {}}
 
