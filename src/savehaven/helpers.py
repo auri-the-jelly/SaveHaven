@@ -27,7 +27,7 @@ from savehaven.configs import creds
 
 # endregion
 
-# region Global Variables
+# region Variables
 SCOPES = ["https://www.googleapis.com/auth/drive"]
 config_dir = user_config_dir("SaveHaven", "Aurelia")
 if not os.path.exists(config_dir):
@@ -37,6 +37,8 @@ home_path = os.path.expanduser("~")
 games_dir = os.path.join(home_path, "Games")
 heroic_dir = os.path.join(games_dir, "Heroic", "Prefixes")
 heroic_saves = []
+persistent = False
+overwrite = False
 # endregion
 
 # region Classes
@@ -237,7 +239,14 @@ def list_folder(folder_id: str) -> list:
         files = None
 
 
-def upload_file(path: str, name: str, parent: str = None, folder: bool = False) -> str:
+def upload_file(
+    path: str,
+    name: str,
+    parent: str = None,
+    folder: bool = False,
+    local_overwrite: bool = True,
+    file_id: str = None,
+) -> str:
     """
     Uploads file to Google Drive
 
@@ -251,6 +260,15 @@ def upload_file(path: str, name: str, parent: str = None, folder: bool = False) 
 
     parent: str, optional
         ID of the parent Google Drive folder
+
+    folder: bool, optional
+        Whether the content to be uploaded is a folder
+
+    local_overwrite: bool, optional
+        Whether to overwrite an existing file
+
+    file_id: str, optional
+        File ID if overwrite is false
     """
     if folder:
         if path[-1] == "/":
@@ -261,7 +279,6 @@ def upload_file(path: str, name: str, parent: str = None, folder: bool = False) 
         print("Zipping")
         make_archive(path + name, "zip", path)
         path = zip_location
-    file_id = None
     try:
         service = build("drive", "v3", credentials=creds)
 
@@ -271,20 +288,32 @@ def upload_file(path: str, name: str, parent: str = None, folder: bool = False) 
         media = MediaFileUpload(path, resumable=True)
 
         # Perform the upload
-        file = (
-            service.files()
-            .create(
-                body={
-                    "name": name if ".zip" in name else f"{name}.zip",
-                    "parents": [parent],
-                },
-                media_body=media,
-                fields="id",
+        if overwrite or local_overwrite:
+            drive_file = (
+                service.files()
+                .create(
+                    body={
+                        "name": name if ".zip" in name else f"{name}.zip",
+                        "parents": [parent],
+                        "keepForever": True if persistent else False,
+                    },
+                    media_body=media,
+                    fields="id",
+                )
+                .execute()
             )
-            .execute()
-        )
+        else:
+            drive_file = (
+                service.files()
+                .update(
+                    fileId=file_id,
+                    media_body=media,
+                    fields="id",
+                )
+                .execute()
+            )
 
-        file_id = file.get("id")
+        file_id = drive_file.get("id")
         os.remove(zip_location)
 
     except HttpError as error:
@@ -336,6 +365,10 @@ def delete_file(file_id):
     except HttpError as error:
         print(f"An error occurred: {error}")
         return False
+
+
+def get_revisions(file_id):
+    pass
 
 
 # endregion
@@ -576,6 +609,7 @@ def upload_game(
     # Find files already in Drive
     drive_folder = create_folder(folder_name, parent=root)
     files = list_folder(drive_folder)
+    local_overwrite = True
     cloud_file = [
         save_file for save_file in files if save_file["name"] == f"{game.name}.zip"
     ]
@@ -588,10 +622,24 @@ def upload_game(
         ).strftime("%s")
         if float(upload_time) < float(game.modified):
             print("Cloud file found, Syncing")
-            delete = delete_file(cloud_file[0]["id"])
-            if not delete:
-                print("Deletion Failed")
-                return [False, None]
+            if not overwrite:
+                questions = [
+                    inquirer.List(
+                        "delete",
+                        message="Do you want to delete the cloud file or upload as revision?",
+                        choices=["Delete", "Update"],
+                    )
+                ]
+                answer = inquirer.prompt(questions, theme=GreenPassion())
+            if overwrite or answer["delete"] == "Delete":
+                delete_status = delete_file(cloud_file[0]["id"])
+                if not delete_status:
+                    print("Deletion Failed")
+                    return [False, None]
+                local_overwrite = True
+            else:
+                local_overwrite = False
+
         elif float(date_time_obj) < float(upload_time):
             print(f"Skipping {game.name}, Google Drive up to date")
             return [False, None]
@@ -603,7 +651,14 @@ def upload_game(
                 return [False, None]
             else:
                 print("Sync cancelled")
-    file_id = upload_file(game.path, f"{game.name}.zip", drive_folder, True)
+    file_id = upload_file(
+        game.path,
+        f"{game.name}.zip",
+        drive_folder,
+        True,
+        local_overwrite,
+        None if local_overwrite else cloud_file[0]["id"],
+    )
     print(f"Finished {game.name}")
     return [True, float(datetime.now().strftime("%s"))]
 
@@ -647,7 +702,7 @@ def heroic_sync(root: str):
     print("Processing files and making API calls...")
     for files in tqdm(
         os.listdir(heroic_dir),
-        bar_format="{l_bar}{bar}|",
+        bar_format="{desc}: {n_fmt}/{total_fmt}|{bar}|",
         desc="Progress",
         leave=False,
         ncols=50,
@@ -877,7 +932,12 @@ def search_dir(root: str):
     """
 
 
-def sync():
+def sync(p: bool = False, o: bool = False):
+    # TODO: add support for persistent (store this version of the file permanently) and overwrite (delete previous file in Google Drive instead of prompting for deletion or updating)
+    global persistent
+    persistent = p
+    global overwrite
+    overwrite = o
     config = os.path.join(config_dir, "config.ini")
     if not os.path.exists(config):
         print("Config file not found, running intialization")

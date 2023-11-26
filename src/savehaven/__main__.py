@@ -14,6 +14,8 @@ def main():
     commands = parser.add_subparsers(title="commands", dest="command")
 
     sync_parser = commands.add_parser("sync", help="Sync saves with Google Drive")
+    sync_parser.add_argument("-p", "--persistent", action="store_true", dest="p")
+    sync_parser.add_argument("-o", "--overwrite", action="store_true", dest="o")
 
     upload_parser = commands.add_parser("upload", help="Upload path to google drive")
     upload_parser.add_argument("path", type=str, help="Path to upload")
@@ -34,7 +36,7 @@ def main():
             file_name = args.name
         upload_file(args.path, file_name, root, os.path.isdir(args.path))
     elif args.command == "sync":
-        sync()
+        sync(args.p, args.o)
     elif args.command == "updatecfg":
         update_launchers()
     else:
