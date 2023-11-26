@@ -17,18 +17,17 @@ Nothing.
 #### Planned
 ------------
 
-Backup/Multiple instances
-
-GOG and Legendary support
-
 Emulator support
 
 Nextcloud
 
-Multiple save files
-
 #### Functional
 ----------------------
+
+Backup/Multiple instances
+
+Multiple save files
+
 Heroic support
 
 Minecraft
@@ -42,6 +41,8 @@ Custom directory support
 Wine EGS - - Games are stored in different places for each game and games may not always use the prefix, and PCGamingWiki is not reliable enough for Linux games
 
 Steam support
+
+GOG and Legendary support
 
 ## For those poor souls who stumbled upon this project and want to contribute for god knows why
 
