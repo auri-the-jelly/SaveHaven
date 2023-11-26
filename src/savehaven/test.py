@@ -1,4 +1,4 @@
-from savehaven.helpers import sync
+from savehaven.helpers import list_cloud
 import datetime
 
-sync(p=True)
+list_cloud()

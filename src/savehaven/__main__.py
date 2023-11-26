@@ -23,6 +23,8 @@ def main():
         "-n", "--name", type=str, help="Name of the zip to upload", required=False
     )
 
+    list_parser = commands.add_parser("keepforever", help="List games from cloud")
+
     cfg_parser = commands.add_parser("updatecfg", help="Update config with launchers")
 
     args = parser.parse_args()
@@ -39,6 +41,8 @@ def main():
         sync(args.p, args.o)
     elif args.command == "updatecfg":
         update_launchers()
+    elif args.command == "keepforever":
+        list_cloud()
     else:
         parser.print_help()
 

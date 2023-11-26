@@ -39,6 +39,8 @@ heroic_dir = os.path.join(games_dir, "Heroic", "Prefixes")
 heroic_saves = []
 persistent = False
 overwrite = False
+# create drive api client
+service = build("drive", "v3", credentials=creds)
 # endregion
 
 # region Classes
@@ -89,9 +91,6 @@ def mod_time(file_id: str) -> datetime:  # sourcery skip: do-not-use-bare-except
         Datetime object of last modified time
     """
     try:
-        # create drive api client
-        service = build("drive", "v3", credentials=creds)
-
         file = service.files().get(fileId=file_id, fields="modifiedTime").execute()
         modified_time = file["modifiedTime"]
         return datetime.strptime(modified_time, "%Y-%m-%dT%H:%M:%S.%fZ")
@@ -118,7 +117,6 @@ def search_file(mime_type: str, filename: str) -> str:
         ID of the file matching filename
     """
     try:
-        service = build("drive", "v3", credentials=creds)
         files = []
         page_token = None
         while True:
@@ -175,7 +173,6 @@ def create_folder(filename: str, parent: str = None) -> str:
 
     try:
         # create drive api client
-        service = build("drive", "v3", credentials=creds)
         if parent:
             file_metadata = {
                 "name": filename,
@@ -212,7 +209,6 @@ def list_folder(folder_id: str) -> list:
     List of files in the folder
     """
     try:
-        service = build("drive", "v3", credentials=creds)
         files = []
         page_token = None
         while True:
@@ -280,8 +276,6 @@ def upload_file(
         make_archive(path + name, "zip", path)
         path = zip_location
     try:
-        service = build("drive", "v3", credentials=creds)
-
         print("Uploading")
 
         # Create the media upload request
@@ -295,7 +289,6 @@ def upload_file(
                     body={
                         "name": name if ".zip" in name else f"{name}.zip",
                         "parents": [parent],
-                        "keepForever": True if persistent else False,
                     },
                     media_body=media,
                     fields="id",
@@ -314,6 +307,17 @@ def upload_file(
             )
 
         file_id = drive_file.get("id")
+        if persistent:
+            revision_id = (
+                service.revisions()
+                .list(fileId=file_id)
+                .execute()["revisions"][-1]["id"]
+            )
+            service.revisions().update(
+                fileId=file_id,
+                revisionId=revision_id,
+                body={"keepForever": True},
+            ).execute()
         os.remove(zip_location)
 
     except HttpError as error:
@@ -326,7 +330,6 @@ def upload_file(
 def download(file_id: str):
     try:
         # create drive api client
-        service = build("drive", "v3", credentials=creds)
 
         # pylint: disable=maybe-no-member
         request = service.files().get_media(fileId=file_id)
@@ -358,8 +361,6 @@ def delete_file(file_id):
 
     """
     try:
-        service = build("drive", "v3", credentials=creds)
-
         service.files().delete(fileId=file_id).execute()
         return True
     except HttpError as error:
@@ -368,7 +369,10 @@ def delete_file(file_id):
 
 
 def get_revisions(file_id):
-    pass
+    revisions = service.revisions().list(fileId=file_id).execute()
+
+    # Print information about each revision
+    return revisions.get("revisions", [])
 
 
 # endregion
@@ -949,6 +953,54 @@ def sync(p: bool = False, o: bool = False):
 
     # Search for save file directories
     search_dir(folder)
+
+
+def list_cloud():
+    folder = create_folder(filename="SaveHaven")
+    savehaven_folder = list_folder(folder)
+    questions = [
+        inquirer.List(
+            "folders",
+            message="Select folders to list",
+            choices=[x["name"] for x in savehaven_folder],
+        )
+    ]
+    answers = inquirer.prompt(questions, theme=GreenPassion())
+    selected_folder = list_folder(
+        [x["id"] for x in savehaven_folder if x["name"] == answers["folders"]][0]
+    )
+    options = [x["name"] for x in selected_folder]
+    questions = [
+        inquirer.List(
+            "files",
+            message="Select revisions to list",
+            choices=options,
+        )
+    ]
+    answers = inquirer.prompt(questions, theme=GreenPassion())
+    selected_file = [x for x in selected_folder if x["name"] == answers["files"]]
+    revisions = get_revisions(selected_file[0]["id"])
+    options = [
+        f"Version {x + 1} {revisions[x]['modifiedTime']}" for x in range(len(revisions))
+    ]
+    questions = [
+        inquirer.Checkbox(
+            "revision",
+            message="Select revisions to list",
+            choices=options,
+        )
+    ]
+    answers = inquirer.prompt(questions, theme=GreenPassion())
+    for revision in answers["revision"]:
+        service.revisions().update(
+            fileId=selected_file[0]["id"],
+            revisionId=[
+                x["id"]
+                for x in revisions
+                if revision[revision.rfind(" ") + 1 :] == x["modifiedTime"]
+            ][0],
+            body={"keepForever": True},
+        ).execute()
 
 
 def get_save_location(name: str) -> str:
