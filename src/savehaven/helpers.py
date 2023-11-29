@@ -719,7 +719,7 @@ def heroic_sync(root: str):
             heroic_saves.append(
                 SaveDir(
                     files,
-                    check_pcgw_location(files, "Epic", prefix_path),
+                    save_path,
                     os.path.getmtime(save_path),
                 )
             )
@@ -743,6 +743,13 @@ def heroic_sync(root: str):
                 "path": heroic_saves[i].path,
                 "uploaded": 0,
             }
+        if heroic_saves[i].name in save_json["games"].keys() and os.path.exists(
+            save_json["games"][heroic_saves[i].name]["path"]
+        ):
+            heroic_saves[i].path = save_json["games"][heroic_saves[i].name]["path"]
+            heroic_saves[i].modified = os.path.getmtime(
+                save_json["games"][heroic_saves[i].name]["path"]
+            )
     if not os.path.exists(list_file) or not save_json["games"].keys():
         save_config(save_dict)
     else:
