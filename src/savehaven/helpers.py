@@ -7,17 +7,17 @@ import requests
 import configparser
 import inquirer
 
-from datetime import datetime
+from datetime import datetime, timezone
 from appdirs import user_config_dir, user_data_dir
 from bs4 import BeautifulSoup
-from shutil import make_archive, unpack_archive
+from shutil import make_archive, unpack_archive, move, copytree
 from inquirer.themes import GreenPassion
 from tqdm import tqdm
 
 import google.auth
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-from googleapiclient.http import MediaFileUpload
+from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -30,8 +30,12 @@ from savehaven.configs import creds
 # region Variables
 SCOPES = ["https://www.googleapis.com/auth/drive"]
 config_dir = user_config_dir("SaveHaven", "Aurelia")
+backups_dir = os.path.join(config_dir, "Backups")
+tmp_dir = os.path.join(config_dir, "tmp")
 if not os.path.exists(config_dir):
     os.mkdir(config_dir)
+    os.mkdir(backups_dir)
+    os.mkdir(tmp_dir)
 list_file = os.path.join(config_dir, "game_list.json")
 home_path = os.path.expanduser("~")
 games_dir = os.path.join(home_path, "Games")
@@ -333,8 +337,8 @@ def download(file_id: str):
 
         # pylint: disable=maybe-no-member
         request = service.files().get_media(fileId=file_id)
-        file = io.BytesIO()
-        downloader = MediaIoBaseDownload(file, request)
+        zip_file = io.BytesIO()
+        downloader = MediaIoBaseDownload(zip_file, request)
         done = False
         while not done:
             status, done = downloader.next_chunk()
@@ -342,7 +346,9 @@ def download(file_id: str):
 
     except HttpError as error:
         print(f"An error occurred: {error}")
-        file = None
+        zip_file = None
+
+    return zip_file
 
 
 def delete_file(file_id):
@@ -617,14 +623,14 @@ def upload_game(
     cloud_file = [
         save_file for save_file in files if save_file["name"] == f"{game.name}.zip"
     ]
+    upload_time = datetime.fromtimestamp(upload_time, tz=timezone.utc)
+    local_modified = datetime.fromtimestamp(game.modified, tz=timezone.utc)
 
     print(f"Working on {game.name}")
     # Check if cloud file was modified before or after upload time
     if cloud_file:
-        date_time_obj = datetime.strptime(
-            cloud_file[0]["modifiedTime"], "%Y-%m-%dT%H:%M:%S.%fZ"
-        ).strftime("%s")
-        if float(upload_time) < float(game.modified):
+        date_time_obj = datetime.fromisoformat(cloud_file[0]["modifiedTime"])
+        if upload_time < local_modified:
             print("Cloud file found, Syncing")
             if not overwrite:
                 questions = [
@@ -644,14 +650,16 @@ def upload_game(
             else:
                 local_overwrite = False
 
-        elif float(date_time_obj) < float(upload_time):
+        elif date_time_obj < upload_time:
             print(f"Skipping {game.name}, Google Drive up to date")
             return [False, None]
-        elif float(date_time_obj) > float(upload_time):
+        elif date_time_obj > upload_time:
             consent = input("Cloud file is more recent, sync with cloud? (Y/n)")
+            print("\n")
             if consent.lower() == "y":
                 print("Syncing")
-                download(cloud_file[0]["id"])
+                fetch_cloud_file(game, cloud_file[0]["id"])
+                print("Completed!")
                 return [False, None]
             else:
                 print("Sync cancelled")
@@ -1064,6 +1072,31 @@ def update_launchers():
         config["Minecraft"] = {"selected": ",".join(answers["mclaunchers"])}
     with open(os.path.join(config_dir, "config.ini"), "w") as list_file:
         config.write(list_file)
+
+
+def fetch_cloud_file(game: SaveDir, cloud_file: str):
+    # DONE: Create Backup folder.
+    # TODO: Move local file to folder.
+    # TODO: Download cloud file.
+    # TODO: Replace local file with cloud file.
+    game_backup = os.path.join(
+        backups_dir, game.name, datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+    )
+    if not os.path.exists(os.path.join(backups_dir, game.name)):
+        os.mkdir(os.path.join(backups_dir, game.name))
+    copytree(game.path, game_backup)
+    zip_file = download(cloud_file)
+    with open(os.path.join(tmp_dir, f"{game.name}.zip"), "wb") as downloaded_file:
+        downloaded_file.write(zip_file.getbuffer())
+    unpack_archive(
+        os.path.join(tmp_dir, f"{game.name}.zip"),
+        os.path.join(tmp_dir),
+    )
+    os.remove(os.path.join(tmp_dir, f"{game.name}.zip"))
+    move(
+        os.path.join(tmp_dir, os.listdir(os.path.join(config_dir, "tmp"))[0]),
+        game.path,
+    )
 
 
 # endregion
