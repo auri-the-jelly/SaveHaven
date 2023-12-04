@@ -27,6 +27,7 @@ from savehaven.configs import creds
 
 # endregion
 
+
 # region Variables
 SCOPES = ["https://www.googleapis.com/auth/drive"]
 config_dir = user_config_dir("SaveHaven", "Aurelia")
@@ -42,6 +43,7 @@ overwrite = False
 # create drive api client
 service = build("drive", "v3", credentials=creds)
 # endregion
+
 
 # region Classes
 
@@ -376,6 +378,7 @@ def get_revisions(file_id):
 
 
 # endregion
+
 
 # region SaveSync functions·
 
