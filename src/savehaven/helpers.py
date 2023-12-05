@@ -713,6 +713,7 @@ def heroic_sync(root: str):
     root: str
         ID of SaveHaven folder in Google Drive
     """
+    """
     # Add prefixes to list
     print("Processing files and making API calls...")
     for files in tqdm(
@@ -767,6 +768,75 @@ def heroic_sync(root: str):
         save_config(save_json)
 
     save_json = load_config()
+"""
+
+    heroic_saves = []
+    if os.path.exists(list_file):
+        save_json = load_config()
+        prefixes = os.listdir(heroic_dir)
+        missing_games = [
+            game for game in prefixes if game not in save_json["games"].keys()
+        ]
+        for key, value in save_json["games"].items():
+            if os.path.exists(value["path"]):
+                save_path = value["path"]
+                modified_time = os.path.getmtime(save_path)
+            elif os.path.exists(os.path.join(heroic_dir, key)):
+                save_path = check_pcgw_location(
+                    key, "Epic", os.path.join(heroic_dir, key)
+                )
+                modified_time = os.path.getmtime(save_path)
+            else:
+                save_path = "N/A"
+                modified_time = 0
+            heroic_saves.append(SaveDir(key, save_path, modified_time))
+        if missing_games:
+            print("Processing files and making API calls...")
+        for files in tqdm(
+            missing_games,
+            bar_format="{desc}: {n_fmt}/{total_fmt}|{bar}|",
+            desc="Progress",
+            leave=False,
+            ncols=50,
+            unit="file",
+        ):
+            prefix_path = os.path.join(heroic_dir, files)
+            # selected_game.path = check_pcgw_location(selected_game.name, "Epic", selected_game.path)
+            save_path = check_pcgw_location(files, "Epic", prefix_path)
+            heroic_saves.append(
+                SaveDir(
+                    files,
+                    save_path,
+                    os.path.getmtime(save_path),
+                )
+            )
+    else:
+        save_json = {"games": {}, "minecraft": {}}
+        print("Processing files and making API calls...")
+        for files in tqdm(
+            os.listdir(heroic_dir),
+            bar_format="{desc}: {n_fmt}/{total_fmt}|{bar}|",
+            desc="Progress",
+            leave=False,
+            ncols=50,
+            unit="file",
+        ):
+            if os.path.isdir(os.path.join(heroic_dir, files)):
+                prefix_path = os.path.join(heroic_dir, files)
+                # selected_game.path = check_pcgw_location(selected_game.name, "Epic", selected_game.path)
+                save_path = check_pcgw_location(files, "Epic", prefix_path)
+                heroic_saves.append(
+                    SaveDir(
+                        files,
+                        save_path,
+                        os.path.getmtime(save_path),
+                    )
+                )
+    for save in heroic_saves:
+        if len(save_json["games"]) > 0:
+            if save.name in save_json["games"].keys():
+                continue
+        save_json["games"][save.name] = {"path": save.path, "uploaded": 0}
 
     questions = [
         inquirer.Checkbox(
@@ -786,9 +856,10 @@ def heroic_sync(root: str):
         selected_games.extend(j for j in heroic_saves if j.name == i)
 
     for game in selected_games:
-        upload_status = upload_game(
-            "Heroic", game, save_json["games"][game.name]["uploaded"], root
-        )
+        if game.path != "N/A":
+            upload_status = upload_game(
+                "Heroic", game, save_json["games"][game.name]["uploaded"], root
+            )
         if upload_status[0] == True:
             save_json["games"][game.name]["uploaded"] = upload_status[1]
     with open(list_file, "w") as saves_file:
