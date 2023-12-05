@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "savehaven"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = ["appdirs", "argparse", "bs4", "configparser", "datetime", "requests", "google", "google-api-python-client","google-auth-httplib2", "google-auth-oauthlib", "inquirer", "tqdm"]
 authors = [
   { name="Aurelia Aurita", email="aurliaanoop@proton.me" },
