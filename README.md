@@ -21,6 +21,8 @@ Emulator support
 
 Nextcloud
 
+Named instances.
+
 #### Functional
 ----------------------
 
