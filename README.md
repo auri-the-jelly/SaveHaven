@@ -24,7 +24,9 @@ Nextcloud
 #### Functional
 ----------------------
 
-Backup/Multiple instances
+Backups
+
+Downloads
 
 Multiple save files
 
