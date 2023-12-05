@@ -713,62 +713,6 @@ def heroic_sync(root: str):
     root: str
         ID of SaveHaven folder in Google Drive
     """
-    """
-    # Add prefixes to list
-    print("Processing files and making API calls...")
-    for files in tqdm(
-        os.listdir(heroic_dir),
-        bar_format="{desc}: {n_fmt}/{total_fmt}|{bar}|",
-        desc="Progress",
-        leave=False,
-        ncols=50,
-        unit="file",
-    ):
-        if os.path.isdir(os.path.join(heroic_dir, files)):
-            prefix_path = os.path.join(heroic_dir, files)
-            # selected_game.path = check_pcgw_location(selected_game.name, "Epic", selected_game.path)
-            save_path = check_pcgw_location(files, "Epic", prefix_path)
-            heroic_saves.append(
-                SaveDir(
-                    files,
-                    save_path,
-                    os.path.getmtime(save_path),
-                )
-            )
-
-    # Read config for added games
-    save_json = load_config()
-    save_dict = {"games": {}}
-
-    # Add games to config
-    for i in range(len(heroic_saves)):
-        if (
-            save_json["games"].keys()
-            and heroic_saves[i].name not in save_json["games"].keys()
-        ):
-            save_json["games"][heroic_saves[i].name] = {
-                "path": heroic_saves[i].path,
-                "uploaded": 0,
-            }
-        else:
-            save_dict["games"][heroic_saves[i].name] = {
-                "path": heroic_saves[i].path,
-                "uploaded": 0,
-            }
-        if heroic_saves[i].name in save_json["games"].keys() and os.path.exists(
-            save_json["games"][heroic_saves[i].name]["path"]
-        ):
-            heroic_saves[i].path = save_json["games"][heroic_saves[i].name]["path"]
-            heroic_saves[i].modified = os.path.getmtime(
-                save_json["games"][heroic_saves[i].name]["path"]
-            )
-    if not os.path.exists(list_file) or not save_json["games"].keys():
-        save_config(save_dict)
-    else:
-        save_config(save_json)
-
-    save_json = load_config()
-"""
 
     heroic_saves = []
     if os.path.exists(list_file):
@@ -862,8 +806,7 @@ def heroic_sync(root: str):
             )
         if upload_status[0] == True:
             save_json["games"][game.name]["uploaded"] = upload_status[1]
-    with open(list_file, "w") as saves_file:
-        json.dump(save_json, saves_file, indent=4)
+    save_config(save_json)
 
 
 def minecraft_sync(root: str):
