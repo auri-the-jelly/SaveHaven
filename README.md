@@ -12,7 +12,7 @@ Currently only supports Linux and Heroic launcher games and Minecraft.
 
 #### Currently
 --------------
-Nothing.
+Custom game locations.
 
 #### Planned
 ------------
