@@ -12,7 +12,7 @@ Currently only supports Linux and Heroic launcher games and Minecraft.
 
 #### Currently
 --------------
-Custom game locations.
+Nothing.
 
 #### Planned
 ------------
@@ -39,6 +39,8 @@ Minecraft
 Argparse
 
 Custom directory support
+
+Custom game locations.
 
 #### Scrapped
 

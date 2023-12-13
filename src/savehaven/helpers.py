@@ -633,7 +633,9 @@ def upload_game(
     # Check if cloud file was modified before or after upload time
     if cloud_file:
         date_time_obj = datetime.fromisoformat(cloud_file[0]["modifiedTime"])
-        if upload_time < local_modified:
+        if upload_time < local_modified and upload_time != datetime.fromtimestamp(
+            0, tz=timezone.utc
+        ):
             print("Cloud file found, Syncing")
             if not overwrite:
                 questions = [
@@ -656,16 +658,36 @@ def upload_game(
         elif date_time_obj < upload_time:
             print(f"Skipping {game.name}, Google Drive up to date")
             return [False, None]
-        elif date_time_obj > upload_time:
-            consent = input("Cloud file is more recent, sync with cloud? (Y/n)")
-            print("\n")
+        elif date_time_obj > upload_time or upload_time == datetime.fromtimestamp(
+            0, tz=timezone.utc
+        ):
+            questions = [
+                inquirer.List(
+                    "cloud",
+                    message="Cloud file is more recent, what would you like to do?",
+                    choices=[
+                        "Replace with cloud version",
+                        "Upload current version",
+                        "Skip",
+                    ],
+                )
+            ]
+            answer = inquirer.prompt(questions, theme=GreenPassion())
+            if answer["cloud"] == "Replace with cloud version":
+                print("Syncing")
+                fetch_cloud_file(game, cloud_file[0]["id"])
+                print("Completed!")
+                return [True, float(date_time_obj.strftime("%s"))]
+            elif answer["cloud"] == "Skip":
+                print("Sync cancelled")
+                return [False, None]
+            """consent = input("Cloud file is more recent, sync with cloud? (Y/n)")
             if consent.lower() == "y":
                 print("Syncing")
                 fetch_cloud_file(game, cloud_file[0]["id"])
                 print("Completed!")
-                return [False, None]
             else:
-                print("Sync cancelled")
+                print("Sync cancelled")"""
     file_id = upload_file(
         game.path,
         f"{game.name}.zip",
@@ -676,6 +698,13 @@ def upload_game(
     )
     print(f"Finished {game.name}")
     return [True, float(datetime.now().strftime("%s"))]
+
+
+def add_custom(game_name, path):
+    config = load_config()
+    if os.path.exists(path):
+        config["games"][game_name] = {"path": os.path.abspath(path), "uploaded": 0}
+    save_config(config)
 
 
 def steam_sync(root: str):
@@ -703,7 +732,7 @@ def steam_sync(root: str):
         print(steam_game)
 
 
-def heroic_sync(root: str):
+def heroic_sync(root: str):  # sourcery skip: extract-method
     """
     Sync Heroic files
 
@@ -777,9 +806,8 @@ def heroic_sync(root: str):
                     )
                 )
     for save in heroic_saves:
-        if len(save_json["games"]) > 0:
-            if save.name in save_json["games"].keys():
-                continue
+        if len(save_json["games"]) > 0 and save.name in save_json["games"].keys():
+            continue
         save_json["games"][save.name] = {"path": save.path, "uploaded": 0}
 
     questions = [
@@ -823,24 +851,28 @@ def minecraft_sync(root: str):
     config = configparser.ConfigParser()
     config.read(os.path.join(config_dir, "config.ini"))
     save_json = load_config()
-    save_json["minecraft"] = {}
+    if "minecraft" not in save_json.keys():
+        save_json["minecraft"] = {}
     worlds = {
         launcher: get_worlds(launcher)
         for launcher in config["Minecraft"]["selected"].split(",")
     }
     for launcher, launcher_worlds in worlds.items():
-        save_json["minecraft"][launcher] = {}
+        if launcher not in save_json["minecraft"].keys():
+            save_json["minecraft"][launcher] = {}
         for world in launcher_worlds:
-            print(world.name)
-            save_json["minecraft"][launcher][world.name] = {
-                "path": world.path,
-                "uploaded": 0,
-            }
+            print(f"Backing up {world.name}")
+            if world.name not in save_json["minecraft"][launcher].keys():
+                save_json["minecraft"][launcher][world.name] = {
+                    "path": world.path,
+                    "uploaded": 0,
+                }
+            minecraft_folder = create_folder("Minecraft", parent=root)
             upload_status = upload_game(
-                "Minecraft",
+                launcher,
                 world,
                 save_json["minecraft"][launcher][world.name]["uploaded"],
-                root,
+                minecraft_folder,
             )
             if upload_status[0] == True:
                 save_json["minecraft"][launcher][world.name][
@@ -849,7 +881,6 @@ def minecraft_sync(root: str):
     save_config(save_json)
 
 
-# TODO Rename this here and in `minecraft_sync`
 def get_worlds(launcher: str):
     """
     Parameters
@@ -1101,7 +1132,7 @@ def fetch_cloud_file(game: SaveDir, cloud_file: str):
     )
     if not os.path.exists(os.path.join(backups_dir, game.name)):
         os.mkdir(os.path.join(backups_dir, game.name))
-    copytree(game.path, game_backup)
+    move(game.path, game_backup)
     zip_file = download(cloud_file)
     with open(os.path.join(tmp_dir, f"{game.name}.zip"), "wb") as downloaded_file:
         downloaded_file.write(zip_file.getbuffer())

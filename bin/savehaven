@@ -1,9 +1,11 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
+# PYTHON_ARGCOMPLETE_OK
 from datetime import datetime
 
 import os
 import argparse
+import argcomplete
 from savehaven.helpers import *
 
 
@@ -25,6 +27,7 @@ def main():
 
     cfg_parser = commands.add_parser("updatecfg", help="Update config with launchers")
 
+    argcomplete.autocomplete(parser)
     args = parser.parse_args()
     if args.command == "upload" and args.path and os.path.exists(args.path):
         root = create_folder("SaveHaven")

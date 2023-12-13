@@ -24,16 +24,17 @@ if os.path.exists(token_path):
     creds = Credentials.from_authorized_user_file(token_path, SCOPES)
 # If there are no (valid) credentials available, let the user log in.
 try:
-    if creds.expired:
-        creds.refresh(Request())
-        with open(token_path, "w") as token:
-            token.write(creds.to_json())
-    elif not creds or not creds.valid:
+    if not creds or not creds.valid and not creds.expired:
         flow = InstalledAppFlow.from_client_secrets_file(creds_path, SCOPES)
         creds = flow.run_local_server(port=0)
         # Save the credentials for the next run
         with open(token_path, "w") as token:
             token.write(creds.to_json())
+    elif creds.expired:
+        creds.refresh(Request())
+        with open(token_path, "w") as token:
+            token.write(creds.to_json())
+
 except FileNotFoundError:
     if not os.path.exists(config_dir):
         os.mkdir(config_dir)
