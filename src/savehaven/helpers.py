@@ -279,8 +279,9 @@ def upload_file(
         if os.path.exists(zip_location):
             os.remove(zip_location)
         print("Zipping")
-        make_archive(path + name, "zip", path)
-        path = zip_location
+        if os.path.isdir(path):
+            make_archive(path + name, "zip", path)
+            path = zip_location
     try:
         print("Uploading")
 
@@ -324,7 +325,7 @@ def upload_file(
                 revisionId=revision_id,
                 body={"keepForever": True},
             ).execute()
-        os.remove(zip_location)
+        os.remove(path)
 
     except HttpError as error:
         print(f"An error occurred: {error}")
@@ -512,26 +513,29 @@ def extract_save_locations(search_soup: BeautifulSoup, search_term: str) -> list
     common_dir = ".var/app/com.valvesoftware.Steam/.steam/steam/steamapps/common"
     user_profile = f"drive_c/users/{os.getlogin()}"
     for plat, tr in save_paths.items():
-        for span in tr.find_all("span"):
-            for data in span(["style", "script"]):
-                # Remove tags
-                data.decompose()
-            path = "".join(span.stripped_strings)
-            path = (
-                path.replace("<Steam-folder>", steam_dir)
-                .replace("%LOCALAPPDATA%", f"{user_profile}/AppData/Local/")
-                .replace("%USERPROFILE%", user_profile)
-                .replace("<path-to-game>", f"{common_dir}/{search_term}")
-                .replace("\\", "/")
-                .replace("<user-id>", user_id)
-                if path
-                else ""
-            )
-            if path.endswith(f"{user_id}/"):
-                path = path.replace(f"{user_id}/", "")
+        if not tr.find_all("span"):
+            save_paths[plat] = ""
+        else:
+            for span in tr.find_all("span"):
+                for data in span(["style", "script"]):
+                    # Remove tags
+                    data.decompose()
+                path = "".join(span.stripped_strings)
+                path = (
+                    path.replace("<Steam-folder>", steam_dir)
+                    .replace("%LOCALAPPDATA%", f"{user_profile}/AppData/Local/")
+                    .replace("%USERPROFILE%", user_profile)
+                    .replace("<path-to-game>", f"{common_dir}/{search_term}")
+                    .replace("\\", "/")
+                    .replace("<user-id>", user_id)
+                    if path
+                    else ""
+                )
+                if path.endswith(f"{user_id}/"):
+                    path = path.replace(f"{user_id}/", "")
 
-            path = os.path.join(*path.split("/"))
-            save_paths[plat] = path
+                path = os.path.join(*path.split("/"))
+                save_paths[plat] = path
     return save_paths
 
 
@@ -641,7 +645,7 @@ def upload_game(
                 questions = [
                     inquirer.List(
                         "delete",
-                        message="Do you want to delete the cloud file or upload as revision?",
+                        message=f"Do you want to delete the cloud file or upload as revision? (Cloud version uploaded:{date_time_obj.strftime('%b %-d %Y, %H:%M:%S')})",
                         choices=["Delete", "Update"],
                     )
                 ]
@@ -661,33 +665,36 @@ def upload_game(
         elif date_time_obj > upload_time or upload_time == datetime.fromtimestamp(
             0, tz=timezone.utc
         ):
+            choices = [
+                f"Replace with cloud version (Uploaded: {date_time_obj.strftime('%b %-d %Y, %H:%M:%S')})",
+                f"Upload current version (Modified: {local_modified.strftime('%b %-d %Y, %H:%M:%S')})",
+                "Skip",
+            ]
             questions = [
                 inquirer.List(
                     "cloud",
                     message="Cloud file is more recent, what would you like to do?",
-                    choices=[
-                        "Replace with cloud version",
-                        "Upload current version",
-                        "Skip",
-                    ],
+                    choices=choices,
                 )
             ]
             answer = inquirer.prompt(questions, theme=GreenPassion())
-            if answer["cloud"] == "Replace with cloud version":
+            if answer["cloud"] == choices[0]:
                 print("Syncing")
                 fetch_cloud_file(game, cloud_file[0]["id"])
                 print("Completed!")
                 return [True, float(date_time_obj.strftime("%s"))]
-            elif answer["cloud"] == "Skip":
+            elif answer["cloud"] == choices[2]:
                 print("Sync cancelled")
                 return [False, None]
-            """consent = input("Cloud file is more recent, sync with cloud? (Y/n)")
-            if consent.lower() == "y":
-                print("Syncing")
-                fetch_cloud_file(game, cloud_file[0]["id"])
-                print("Completed!")
-            else:
-                print("Sync cancelled")"""
+            elif answer["cloud"] == choices[1]:
+                local_overwrite = False
+                """consent = input("Cloud file is more recent, sync with cloud? (Y/n)")
+                if consent.lower() == "y":
+                    print("Syncing")
+                    fetch_cloud_file(game, cloud_file[0]["id"])
+                    print("Completed!")
+                else:
+                    print("Sync cancelled")"""
     file_id = upload_file(
         game.path,
         f"{game.name}.zip",
@@ -832,8 +839,8 @@ def heroic_sync(root: str):  # sourcery skip: extract-method
             upload_status = upload_game(
                 "Heroic", game, save_json["games"][game.name]["uploaded"], root
             )
-        if upload_status[0] == True:
-            save_json["games"][game.name]["uploaded"] = upload_status[1]
+            if upload_status[0] == True:
+                save_json["games"][game.name]["uploaded"] = upload_status[1]
     save_config(save_json)
 
 
@@ -875,9 +882,9 @@ def minecraft_sync(root: str):
                 minecraft_folder,
             )
             if upload_status[0] == True:
-                save_json["minecraft"][launcher][world.name][
-                    "uploaded"
-                ] = upload_status[1]
+                save_json["minecraft"][launcher][world.name]["uploaded"] = (
+                    upload_status[1]
+                )
     save_config(save_json)
 
 
@@ -999,7 +1006,7 @@ def search_dir(root: str):
     """
 
 
-def sync(p: bool = False, o: bool = False):
+def backup(p: bool = False, o: bool = False):
     # TODO: add support for persistent (store this version of the file permanently) and overwrite (delete previous file in Google Drive instead of prompting for deletion or updating)
     global persistent
     persistent = p
@@ -1145,6 +1152,35 @@ def fetch_cloud_file(game: SaveDir, cloud_file: str):
         os.path.join(tmp_dir, os.listdir(os.path.join(config_dir, "tmp"))[0]),
         game.path,
     )
+
+
+def restore():
+    root_folder = create_folder(filename="SaveHaven")
+    config = load_config()
+    folders = list_folder(root_folder)
+    if len(folders) > 1:
+        questions = [
+            inquirer.Checkbox(
+                "folder",
+                message="Choose folders.",
+                choices=[x["name"] for x in folders],
+            )
+        ]
+        answers = inquirer.prompt(questions, theme=GreenPassion())
+        folders = [x for x in folders if x["name"] in answers["folder"]]
+    for folder in folders:
+        files = list_folder(create_folder(filename=folder["name"], parent=root_folder))
+        local_files = [
+            SaveDir(key, value["path"], os.path.getmtime(value["path"]))
+            for key, value in config["games"].items()
+        ]
+        cloud_files = []
+        filenames = [x.name for x in local_files]
+        for i in range(len(files)):
+            cloud_files.append(f"{files[i]['name'][:-4]} (Uploaded:)")
+            if cloud_files[i][:-12] not in filenames:
+                files.pop(i)
+    questions = [inquirer.Checkbox("files", message="Select files to restore")]
 
 
 # endregion

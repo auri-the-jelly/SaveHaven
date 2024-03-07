@@ -16,7 +16,7 @@ def main():
 
     commands = parser.add_subparsers(title="commands", dest="command")
 
-    sync_parser = commands.add_parser("sync", help="Sync saves with Google Drive")
+    sync_parser = commands.add_parser("backup", help="Backup saves with Google Drive")
     sync_parser.add_argument("-p", "--persistent", action="store_true", dest="p")
     sync_parser.add_argument("-o", "--overwrite", action="store_true", dest="o")
 
@@ -31,6 +31,8 @@ def main():
     )
 
     cfg_parser = commands.add_parser("updatecfg", help="Update config with launchers")
+
+    restore_parser = commands.add_parser("restore", help="Restore backup from cloud")
 
     custom_parser = commands.add_parser("add", help="Add a custom game location")
     custom_parser.add_argument("name", help="Name of the game")
@@ -49,14 +51,16 @@ def main():
                 else:
                     file_name = args.name
                 upload_file(args.path, file_name, root, os.path.isdir(args.path))
-        case "sync":
-            sync(args.p, args.o)
+        case "backup":
+            backup(args.p, args.o)
         case "updatecfg":
             update_launchers()
         case "list":
             list_cloud()
         case "add":
             add_custom(args.name, args.path)
+        case "restore":
+            restore()
         case _:
             parser.print_help()
 
