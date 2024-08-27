@@ -5,6 +5,7 @@ from appdirs import user_config_dir
 
 config_dir = user_config_dir("SaveHaven", "Aurelia")
 
+import google
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -43,5 +44,9 @@ except FileNotFoundError:
         )
     else:
         print("Move credentials.json to config dir")
+
+except google.auth.exceptions.RefreshError:
+    os.remove(token_path)
+    print("Token expired, please try again.")
 
     quit()

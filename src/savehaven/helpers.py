@@ -7,6 +7,7 @@ import requests
 import configparser
 import inquirer
 
+from pyfzf.pyfzf import FzfPrompt
 from datetime import datetime, timezone
 from appdirs import user_config_dir, user_data_dir
 from bs4 import BeautifulSoup
@@ -46,6 +47,7 @@ persistent = False
 overwrite = False
 # create drive api client
 service = build("drive", "v3", credentials=creds)
+fzf = FzfPrompt()
 # endregion
 
 
@@ -825,12 +827,13 @@ def heroic_sync(root: str):  # sourcery skip: extract-method
         )
     ]
 
-    answers = inquirer.prompt(questions, theme=GreenPassion())
+    choices = [i.name for i in heroic_saves]
+    answers = fzf.prompt(choices, "--multi --cycle")
 
     print("Backing up these games: ")
 
     selected_games = []
-    for i in answers["selected_games"]:
+    for i in answers:
         print(f"    {i}")
         selected_games.extend(j for j in heroic_saves if j.name == i)
 
@@ -1007,6 +1010,20 @@ def search_dir(root: str):
 
 
 def backup(p: bool = False, o: bool = False):
+    """
+    Performs a backup of save files to the SaveHaven cloud storage.
+
+    Args:
+        p (bool, optional): Flag indicating whether to enable persistent storage. Defaults to False.
+        o (bool, optional): Flag indicating whether to enable overwrite mode. Defaults to False.
+
+    Returns:
+        None
+
+    Examples:
+        backup(p=True, o=False)
+    """
+
     # TODO: add support for persistent (store this version of the file permanently) and overwrite (delete previous file in Google Drive instead of prompting for deletion or updating)
     global persistent
     persistent = p
@@ -1026,6 +1043,19 @@ def backup(p: bool = False, o: bool = False):
 
 
 def list_cloud():
+    """
+    Lists the revisions of files in the SaveHaven cloud storage.
+
+    Args:
+        None
+
+    Returns:
+        None
+
+    Examples:
+        list_cloud()
+    """
+
     folder = create_folder(filename="SaveHaven")
     savehaven_folder = list_folder(folder)
     questions = [
@@ -1074,6 +1104,19 @@ def list_cloud():
 
 
 def get_save_location(name: str) -> str:
+    """
+    Gets the save location for a game by searching the Steam store.
+
+    Args:
+        name (str): The name of the game.
+
+    Returns:
+        str: The save location of the game.
+
+    Examples:
+        save_location = get_save_location(name)
+    """
+
     steam_search_url = "https://store.steampowered.com/search/?term="
     search_term = name.replace(" ", "+")
     steam_search = requests.get(steam_search_url + search_term)
@@ -1130,10 +1173,20 @@ def update_launchers():
 
 
 def fetch_cloud_file(game: SaveDir, cloud_file: str):
-    # DONE: Create Backup folder.
-    # TODO: Move local file to folder.
-    # TODO: Download cloud file.
-    # TODO: Replace local file with cloud file.
+    """
+    Fetches a file from the cloud and restores it to the specified game directory.
+
+    Args:
+        game (SaveDir): The game directory to restore the file to.
+        cloud_file (str): The ID of the file in the cloud.
+
+    Returns:
+        None
+
+    Examples:
+        fetch_cloud_file(game, cloud_file)
+    """
+
     game_backup = os.path.join(
         backups_dir, game.name, datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
     )
@@ -1145,16 +1198,31 @@ def fetch_cloud_file(game: SaveDir, cloud_file: str):
         downloaded_file.write(zip_file.getbuffer())
     unpack_archive(
         os.path.join(tmp_dir, f"{game.name}.zip"),
-        os.path.join(tmp_dir),
+        os.path.join(tmp_dir, game.name),
     )
     os.remove(os.path.join(tmp_dir, f"{game.name}.zip"))
-    move(
-        os.path.join(tmp_dir, os.listdir(os.path.join(config_dir, "tmp"))[0]),
-        game.path,
-    )
+    os.mkdir(game.path)
+    for file in os.listdir(os.path.join(tmp_dir, game.name)):
+        move(
+            os.path.join(tmp_dir, game.name, file),
+            game.path,
+        )
 
 
 def restore():
+    """
+    Restores files from the SaveHaven backup.
+
+    Args:
+        None
+
+    Returns:
+        None
+
+    Examples:
+        restore()
+    """
+
     root_folder = create_folder(filename="SaveHaven")
     config = load_config()
     folders = list_folder(root_folder)
@@ -1171,16 +1239,35 @@ def restore():
     for folder in folders:
         files = list_folder(create_folder(filename=folder["name"], parent=root_folder))
         local_files = [
-            SaveDir(key, value["path"], os.path.getmtime(value["path"]))
+            (
+                SaveDir(key, value["path"], os.path.getmtime(value["path"]))
+                if os.path.exists(value["path"])
+                else SaveDir(key, "N/A", "N/A")
+            )
             for key, value in config["games"].items()
         ]
         cloud_files = []
         filenames = [x.name for x in local_files]
-        for i in range(len(files)):
+        # for i in range(len(files)):
+        i = 0
+        while i < len(files):
             cloud_files.append(f"{files[i]['name'][:-4]} (Uploaded:)")
             if cloud_files[i][:-12] not in filenames:
                 files.pop(i)
-    questions = [inquirer.Checkbox("files", message="Select files to restore")]
+            else:
+                i += 1
+    questions = [
+        inquirer.Checkbox("files", message="Select files to restore", choices=files)
+    ]
+    answers = inquirer.prompt(questions, theme=GreenPassion())
+    for answer in answers["files"]:
+        name = answer["name"][:-4]
+        for save in local_files:
+            if name == save.name:
+                fetch_cloud_file(save, answer["id"])
 
 
 # endregion
+
+if __name__ == "__main__":
+    restore()
