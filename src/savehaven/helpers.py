@@ -439,6 +439,8 @@ def pcgw_search(search_term: str, steam_id: bool = False) -> list:
     save_paths : list
         List of save locations by platform (Steam, Windows, Epic Games, etc.)
     """
+    # Retrieve Save Locations from PCGamingWiki
+
     # Cases:
     #    If Windows and Steam and Steam Play - Use steam directory
     #    If Windows and Steam Play - Use prefix + windows dir
@@ -448,7 +450,9 @@ def pcgw_search(search_term: str, steam_id: bool = False) -> list:
     else:
         search_url = "https://www.pcgamingwiki.com/w/index.php?search="
     search_term = search_term.replace(" ", "+")
-    result = requests.get(search_url + search_term)
+    result = requests.get(
+        search_url + search_term,
+    )
     search_soup = BeautifulSoup(result.content, "html.parser")
     if search_soup.find(class_="mw-search-result-heading"):
         # print(
@@ -1270,4 +1274,4 @@ def restore():
 # endregion
 
 if __name__ == "__main__":
-    restore()
+    backup()
